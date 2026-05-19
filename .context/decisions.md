@@ -1,0 +1,78 @@
+---
+type: decisions
+project: karma-rush
+updated: 2026-05-20
+tags: [context, decisions]
+---
+
+# Decisions
+
+Settled questions. Append-only; each entry dated. The block below came from a `/grill-me` session — **do not re-litigate without a reason.** Each entry records the *why* and the rejected alternatives so a future agent can judge edge cases instead of guessing.
+
+## Related
+
+- [[overview]]
+
+---
+
+## 2026-05-20 — Design grill (KARMA RUSH, 19 decisions + architecture)
+
+### D1 — TUI library: `blessed`
+Render and read input with `blessed`. **Why:** cross-platform raw-terminal control, simple manual game loop, non-blocking key reads (`inkey`); one pip dependency, works on Windows with no extra package. **Rejected:** `curses` (needs `windows-curses`, C-style API), `textual` (widget/CSS model fights a per-cell grid), `rich` Live (no real input handling).
+
+### D2 — Movement: tick-poll, hold-to-move
+Fixed 20 Hz tick loop. Each tick drains the input buffer and moves the player at most one cell per axis toward the latest direction(s) held; key release stops movement. **Why:** responsive, easy to aim at items, and a constant speed regardless of OS key-repeat rate or buffer depth. **Rejected:** snake-style auto-move heading (hard to grab items precisely), step-per-press (too calm for a 60s twitch game).
+
+### D3 — Arena: fixed bordered box, empty
+Fixed ~60×20-cell rectangle with a drawn wall border; no interior obstacles. **Why:** simplest, matches scope — tension comes from sanity, not layout. **Rejected:** interior obstacles (collision + spawn-avoidance code), fit-to-terminal (min-size checks + dynamic spawn math).
+
+### D4 — Spawning: steady cap, respawn on pickup
+Keep ~6 items on the floor at all times; collecting one spawns a replacement. No timed despawn. **Why:** always targets to chase, pure hoarding race, no empty-floor risk. **Rejected:** interval spawn + timed despawn (more tuning, empty-floor risk), accumulate-with-no-cap (floor crowds late-game).
+
+### D5 — Mystery: fully hidden, identical glyph
+Every item is the same glyph (`?`); good/bad karma is revealed only on pickup. **Why:** this *is* the "mysterious" core — every pickup is a genuine gamble. **Rejected:** rare visual tells (more design + code), distinguishable-on-sight (removes the mystery entirely).
+
+### D6 — Karma odds: 50 / 50
+Each item is an even good/bad coin-flip. **Why:** cleanest gamble — hoarding everything is genuinely risky. **Rejected:** 60/40 good (too safe, grabbing everything is fine), 40/60 bad (fights the stated hoard-hard goal).
+
+### D7 — Sanity: start 100, slow passive decay
+Sanity is 0–100, starts at 100, and drains slowly every second. **Why:** "helps *maintain* it" implies something to maintain against — decay forces hoarding and makes good karma valuable even at 50/50 odds. **Rejected:** start 50 no decay (survival is pure luck), start 100 no decay (weak "maintain" pressure).
+
+### D8 — Win/lose: score chase, sanity-0 = death
+Goal: collect the most items in 60s. Score = items collected. Sanity hitting 0 ends the run instantly (death), score frozen; surviving to 60s completes the run. **Why:** scope says "keep hoarding" → score is item count, and sanity is the constraint/lose-gate; a high-score arcade loop. **Rejected:** threshold win/lose at 60s (binary, score secondary), survival-only (no score chase).
+
+### D9 — Collection: walk-over auto-collect
+Moving the square onto an item's cell collects it instantly — no key press. **Why:** frantic, fits tick-poll movement and the hoarding goal. **Rejected:** press-key-to-grab (slows the hoard, adds nothing for a 60s game).
+
+### D10 — Difficulty: flat
+All tuning constants are fixed for the whole run. **Why:** simplest to build and balance, matches scope — tension comes from current sanity, not escalation. **Rejected:** ramping decay / ramping spawn or odds (more code and balancing; not in scope).
+
+### D11 — Pickup feedback: HUD flash + sanity-bar reaction
+On pickup, a transient colored text flash (`+12` green / `−12` red) plus a color-coded sanity bar that visibly jumps (green high / yellow mid / red low). **Why:** clear and readable in a terminal. **Rejected:** cell-flash-only, and HUD-flash + cell-flash together (more rendering code for marginal gain).
+
+### D12 — Run-end: restart + persistent high score
+End screen shows this run's score and the best-ever; R replays, Q quits; the best score is saved to a local file across launches. **Why:** a full arcade replay loop with a long-term target. **Rejected:** restart without persistence (best resets on exit), single-run-then-exit (no loop).
+
+### D13 — Start flow: title → countdown → play
+Launch shows a title screen (name, controls, "press any key"), then a 3-2-1 countdown, then the timer starts. **Why:** the player reads controls before the clock runs. **Rejected:** countdown-only (controls never shown up front), instant start (disorienting first seconds).
+
+### D14 — Controls: arrows + WASD, Q/Esc quit, R restart
+Both arrow keys and WASD move; Q or Esc quits mid-run; R restarts on the end screen. **Why:** most accommodating — either movement scheme works. **Rejected:** arrows-only or WASD-only (each excludes a player habit).
+
+### D15 — Visuals: block player, color, box-drawing walls
+Player = solid block (cyan), items = `?` (yellow), arena = box-drawing border (dim), color-coded sanity bar. **Why:** the "square" is literal, and color carries the karma feedback from D11. Needs a Unicode-capable terminal — fine on Windows Terminal. **Rejected:** pure ASCII (compatibility we do not need), monochrome (kills the green/red feedback).
+
+### D16 — Structure: modular package + requirements.txt
+A modular Python package (config, core, render, input, screens, highscore, app), `requirements.txt` pinning `blessed`, Python 3.11+, run via `python main.py`. **Why:** modules map cleanly onto the issue slices; `requirements.txt` is enough for a small game. **Rejected:** single file (hard to slice into issues, gets messy), `pyproject.toml` package (setup overhead not worth it).
+
+### D17 — Testing: pytest on a blessed-free core
+Keep all game rules in a `blessed`-free core module; `pytest` covers sanity clamping, karma resolution, spawn placement, score, and end conditions. Rendering and input stay untested. **Why:** a pure core is testable without a TTY; high value for modest effort. **Rejected:** no tests (logic regressions slip silently), full coverage including rendering (brittle, slow).
+
+### D18 — Name: KARMA RUSH
+The game is called KARMA RUSH. **Why:** short, arcade-y, captures the 60-second frenzy and the karma mechanic.
+
+### D19 — Balance: "Standard" preset
+Starting values: passive decay 1.5/sec, good karma `+12`, bad karma `−12`, item cap 6. **Why:** with 50/50 odds the average item swing is zero, so decay is the real clock — you usually survive most of the minute and bad-luck streaks end runs early. These live in the config module and are a starting point; final values are set by the Slice 7 playtest. **Rejected:** Forgiving (most runs trivially reach 60s), Harsh (many runs die before 60s).
+
+### D20 — Architecture: pure core + thin terminal shell
+The game splits into a pure **core engine** and a thin **terminal shell**. The core (`GameState.tick(intents, dt)`) imports no `blessed`, reads no real clock, and touches no files — time arrives as `dt`, randomness as an injected RNG; the shell does all rendering, input, and I/O. **Why:** this is the consequence of D16 + D17 — it is the only thing that makes the rules unit-testable, and `dt`-driving keeps frame hitches from changing game speed. Load-bearing: keep `blessed` out of the core from the first commit.
