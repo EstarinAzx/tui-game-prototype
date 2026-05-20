@@ -1,0 +1,3 @@
+# KARMA RUSH runtime dependencies.
+# blessed is the only one: it handles terminal drawing and keyboard input.
+blessed==1.41.0
