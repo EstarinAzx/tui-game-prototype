@@ -21,6 +21,9 @@ VERTICAL = "│"
 # The character used for the player: a solid filled block.
 PLAYER_GLYPH = "█"
 
+# The character used for an item: a mysterious question mark.
+ITEM_GLYPH = "?"
+
 # How many rows under the arena are kept clear for the HUD (added in Slice 2).
 # It counts toward the minimum terminal size so the layout never jumps later.
 HUD_ROWS = 2
@@ -70,9 +73,10 @@ def render_resize_prompt(term, config):
 # ----------------------------------------------------------------------------
 # render_frame — draw one frame of the running game
 # ----------------------------------------------------------------------------
-# Draws the bordered arena and the cyan player block. The whole arena is
-# redrawn every frame, so the player's old position is painted over and no
-# trail is left behind. The arena is centered, so big windows just letterbox.
+# Draws the bordered arena, the yellow item glyphs, the cyan player block, and
+# the HUD score line under the arena. The whole frame is redrawn every tick, so
+# old positions are painted over and no trail is left. The arena is centered,
+# so big windows just letterbox.
 def render_frame(term, state, config):
     width = config.arena_width
     height = config.arena_height
@@ -95,28 +99,31 @@ def render_frame(term, state, config):
 
     # Each interior row: a side wall, the floor, then a side wall.
     for row in range(height):
-        # By default the whole floor row is empty space.
+        # Start the row as bare floor, one cell per column.
+        cells = [" "] * width
+        # Drop a yellow "?" on every item that sits on this row.
+        for ix, iy in state.items:
+            if iy == row:
+                cells[ix] = term.yellow(ITEM_GLYPH)
+        # The player draws last so it sits on top of anything else.
         if row == py:
-            # On the player's row, drop the cyan block at the player's column.
-            interior = (
-                " " * px
-                + term.cyan(PLAYER_GLYPH)
-                + " " * (width - px - 1)
-            )
-        else:
-            # Every other row is just blank floor.
-            interior = " " * width
+            cells[px] = term.cyan(PLAYER_GLYPH)
         # Move to the row's start and draw wall + floor + wall.
         out.append(
             term.move_xy(origin_x, origin_y + 1 + row)
             + term.dim(VERTICAL)
-            + interior
+            + "".join(cells)
             + term.dim(VERTICAL)
         )
 
     # The bottom border line, drawn the same way as the top.
     bottom = BOTTOM_LEFT + HORIZONTAL * width + BOTTOM_RIGHT
     out.append(term.move_xy(origin_x, origin_y + box_h - 1) + term.dim(bottom))
+
+    # The HUD sits in the reserved rows under the arena. Pad to the arena
+    # width so a shrinking number never leaves a stale digit behind.
+    hud = f"SCORE {state.score}".ljust(width)
+    out.append(term.move_xy(origin_x, origin_y + box_h) + hud)
 
     # Send the whole frame to the terminal in a single write.
     print("".join(out), end="", flush=True)

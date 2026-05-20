@@ -14,7 +14,7 @@ import random
 import pytest
 
 from karma_rush.config import Config
-from karma_rush.core import GameState
+from karma_rush.core import GameState, Pickup
 
 
 # ----------------------------------------------------------------------------
@@ -143,3 +143,112 @@ def test_empty_intents_does_not_move_player():
     state.tick(set(), dt=0.05)
     # The player is exactly where it started.
     assert state.player == (30, 10)
+
+
+# ----------------------------------------------------------------------------
+# Cycle 8 — a new game stocks the floor with item_cap items
+# ----------------------------------------------------------------------------
+# When a fresh game is created the floor should already be stocked: exactly
+# item_cap items waiting to be collected.
+def test_new_game_spawns_item_cap_items():
+    # A config with a known item cap so the expected count is plain.
+    cfg = Config(arena_width=60, arena_height=20, item_cap=6)
+    state = GameState.new(random.Random(0), cfg)
+    # The floor holds exactly the capped number of items.
+    assert len(state.items) == 6
+
+
+# ----------------------------------------------------------------------------
+# Cycle 9 — a spawned item never lands on the player or another item
+# ----------------------------------------------------------------------------
+# Items must appear only on empty cells. Across many seeds, no spawn should
+# ever sit on the player's cell, and no two items should share a cell.
+@pytest.mark.parametrize("seed", range(20))
+def test_spawned_items_never_overlap_player_or_each_other(seed):
+    # A tight arena so the spawner is forced to fit items into few free cells.
+    cfg = Config(arena_width=4, arena_height=3, item_cap=6)
+    state = GameState.new(random.Random(seed), cfg)
+    # No item shares the player's cell.
+    assert state.player not in state.items
+    # The items are a set, so the count proves none collided.
+    assert len(state.items) == 6
+
+
+# ----------------------------------------------------------------------------
+# Cycle 10 — walking the player onto an item collects it
+# ----------------------------------------------------------------------------
+# Stepping onto an item's cell removes that item from the floor — no key
+# press needed beyond the movement itself.
+def test_walking_onto_an_item_collects_it():
+    state = make_state()
+    # Put the player next to one known item; ignore the auto-spawned ones.
+    state.player = (5, 5)
+    state.items = {(6, 5)}
+    # Step right, onto the item's cell.
+    state.tick({"right"}, dt=0.05)
+    # The item the player stepped onto is gone from the floor.
+    assert (6, 5) not in state.items
+
+
+# ----------------------------------------------------------------------------
+# Cycle 11 — collecting an item triggers a replacement spawn
+# ----------------------------------------------------------------------------
+# The floor is kept stocked: after a pickup the spawner tops it back up to the
+# item cap, so the count is the same before and after.
+def test_collecting_an_item_refills_to_the_cap():
+    cfg = Config(arena_width=60, arena_height=20, item_cap=6)
+    state = GameState.new(random.Random(0), cfg)
+    # Sanity check: the floor starts full.
+    assert len(state.items) == 6
+    # Park the player beside one item and remove the rest so the step is known.
+    state.player = (5, 5)
+    state.items = {(6, 5)}
+    # Step onto the item, collecting it.
+    state.tick({"right"}, dt=0.05)
+    # The pickup was replaced — the floor is back up to the cap.
+    assert len(state.items) == 6
+
+
+# ----------------------------------------------------------------------------
+# Cycle 12 — the score rises by exactly 1 for each item collected
+# ----------------------------------------------------------------------------
+# Score starts at 0, climbs one per pickup, and a tick that collects nothing
+# leaves it untouched.
+def test_score_increments_by_one_per_pickup():
+    state = make_state()
+    # A fresh game starts with a score of zero.
+    assert state.score == 0
+    # Stage one known item beside the player and collect it.
+    state.player = (5, 5)
+    state.items = {(6, 5)}
+    state.tick({"right"}, dt=0.05)
+    # One pickup -> score of one.
+    assert state.score == 1
+    # A tick that walks onto no item must not change the score.
+    state.items = set()
+    state.tick({"right"}, dt=0.05)
+    assert state.score == 1
+    # Stage a second known item and collect it too.
+    state.items = {(state.player[0] + 1, state.player[1])}
+    state.tick({"right"}, dt=0.05)
+    # Two pickups -> score of two.
+    assert state.score == 2
+
+
+# ----------------------------------------------------------------------------
+# Cycle 13 — tick reports each collected item as a Pickup event
+# ----------------------------------------------------------------------------
+# The core tells the shell what happened: a tick that collects an item returns
+# a Pickup carrying the cell it was collected from; a quiet tick returns none.
+def test_tick_returns_a_pickup_event_for_each_collected_item():
+    state = make_state()
+    # A tick that walks onto no item reports nothing.
+    state.player = (5, 5)
+    state.items = set()
+    assert state.tick({"right"}, dt=0.05) == []
+    # Stage a known item and step onto it.
+    state.player = (5, 5)
+    state.items = {(6, 5)}
+    events = state.tick({"right"}, dt=0.05)
+    # Exactly one Pickup, carrying the cell the item was collected from.
+    assert events == [Pickup(cell=(6, 5))]

@@ -10,6 +10,20 @@
 # arrives from the outside as an injected RNG. Because of that, the exact same
 # inputs always produce the exact same game — handy for tests.
 
+# A dataclass bundles a few named values into one tidy object.
+from dataclasses import dataclass
+
+
+# ----------------------------------------------------------------------------
+# Pickup — a thing that happened: the player collected an item
+# ----------------------------------------------------------------------------
+# tick() returns a list of these so the shell can react (flash, sound, ...).
+# For now it just carries the cell the item was collected from.
+@dataclass(frozen=True)
+class Pickup:
+    # The (x, y) cell the collected item sat on.
+    cell: tuple
+
 
 # ----------------------------------------------------------------------------
 # GameState — the whole game in one object
@@ -18,11 +32,17 @@
 class GameState:
     # Build a GameState from its pieces. Most code should use GameState.new(...)
     # below instead of calling this directly.
-    def __init__(self, config, player):
+    def __init__(self, config, player, rng):
         # Keep the settings bundle so tick() knows the arena size.
         self._config = config
+        # Keep the injected RNG so the spawner can pick empty cells later.
+        self._rng = rng
         # The player's cell as an (x, y) pair: x is the column, y is the row.
         self.player = player
+        # The set of item cells currently on the floor.
+        self.items = set()
+        # How many items the player has collected this run.
+        self.score = 0
 
     # Make a brand-new game ready to play.
     # rng is the injected random source; config is the settings bundle.
@@ -30,8 +50,32 @@ class GameState:
     def new(cls, rng, config):
         # The player starts in the middle of the arena.
         center = (config.arena_width // 2, config.arena_height // 2)
-        # Hand the finished pieces to the constructor.
-        return cls(config=config, player=center)
+        # Build the game, then stock the floor up to the item cap.
+        state = cls(config=config, player=center, rng=rng)
+        state._refill_items()
+        return state
+
+    # ------------------------------------------------------------------------
+    # _refill_items — top the floor back up to the item cap
+    # ------------------------------------------------------------------------
+    # Spawns items at random empty cells until the floor holds item_cap of
+    # them. An empty cell is one with neither the player nor another item on
+    # it. If the arena has no room left, it simply stops early.
+    def _refill_items(self):
+        cfg = self._config
+        while len(self.items) < cfg.item_cap:
+            # Every floor cell that is free to take a new item.
+            empty = [
+                (x, y)
+                for x in range(cfg.arena_width)
+                for y in range(cfg.arena_height)
+                if (x, y) != self.player and (x, y) not in self.items
+            ]
+            # No room left — stop rather than loop forever.
+            if not empty:
+                return
+            # Pick one free cell with the injected RNG and place an item.
+            self.items.add(self._rng.choice(empty))
 
     # ------------------------------------------------------------------------
     # tick — advance the game by one frame
@@ -57,5 +101,13 @@ class GameState:
         new_x = max(0, min(self._config.arena_width - 1, new_x))
         new_y = max(0, min(self._config.arena_height - 1, new_y))
         self.player = (new_x, new_y)
-        # No frame events exist yet in Slice 1, so report an empty list.
-        return []
+        # Things that happened this frame, reported back to the shell.
+        events = []
+        # If the player landed on an item, collect it: take it off the floor,
+        # score the pickup, and spawn a replacement to keep the floor stocked.
+        if self.player in self.items:
+            self.items.discard(self.player)
+            self.score += 1
+            events.append(Pickup(cell=self.player))
+            self._refill_items()
+        return events
