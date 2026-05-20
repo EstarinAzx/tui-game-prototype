@@ -24,8 +24,15 @@ PLAYER_GLYPH = "█"
 # The character used for an item: a mysterious question mark.
 ITEM_GLYPH = "?"
 
-# How many rows under the arena are kept clear for the HUD (added in Slice 2).
-# It counts toward the minimum terminal size so the layout never jumps later.
+# The sanity bar: a fixed-width gauge drawn in the HUD. Filled cells show the
+# sanity that remains; empty cells show how much has drained away.
+SANITY_BAR_WIDTH = 20
+SANITY_BAR_FILLED = "█"
+SANITY_BAR_EMPTY = "░"
+
+# How many rows under the arena are kept clear for the HUD. Row 0 holds the
+# score and the pickup flash; row 1 holds the sanity bar. It counts toward the
+# minimum terminal size so the layout never jumps later.
 HUD_ROWS = 2
 
 
@@ -71,13 +78,31 @@ def render_resize_prompt(term, config):
 
 
 # ----------------------------------------------------------------------------
+# _sanity_color — pick the HUD color for the current sanity level
+# ----------------------------------------------------------------------------
+# The sanity bar is a danger gauge: green when comfortably high, yellow in the
+# middle, red when sanity is low enough to threaten the run. Returns a blessed
+# color callable that wraps text in the right color.
+def _sanity_color(term, sanity, config):
+    if sanity > config.sanity_green_above:
+        return term.green
+    if sanity >= config.sanity_yellow_above:
+        return term.yellow
+    return term.red
+
+
+# ----------------------------------------------------------------------------
 # render_frame — draw one frame of the running game
 # ----------------------------------------------------------------------------
 # Draws the bordered arena, the yellow item glyphs, the cyan player block, and
-# the HUD score line under the arena. The whole frame is redrawn every tick, so
-# old positions are painted over and no trail is left. The arena is centered,
-# so big windows just letterbox.
-def render_frame(term, state, config):
+# the HUD under the arena: a score line with an optional pickup flash, and a
+# color-coded sanity bar. The whole frame is redrawn every tick, so old
+# positions are painted over and no trail is left. The arena is centered, so
+# big windows just letterbox.
+#
+# flash, when given, is a (text, is_good) pair — the "+12" / "-12" pickup
+# feedback; is_good picks green vs red. Pass None for no flash.
+def render_frame(term, state, config, flash=None):
     width = config.arena_width
     height = config.arena_height
     # The box is the interior plus one border cell on each side.
@@ -120,10 +145,27 @@ def render_frame(term, state, config):
     bottom = BOTTOM_LEFT + HORIZONTAL * width + BOTTOM_RIGHT
     out.append(term.move_xy(origin_x, origin_y + box_h - 1) + term.dim(bottom))
 
-    # The HUD sits in the reserved rows under the arena. Pad to the arena
-    # width so a shrinking number never leaves a stale digit behind.
-    hud = f"SCORE {state.score}".ljust(width)
-    out.append(term.move_xy(origin_x, origin_y + box_h) + hud)
+    # --- HUD row 0: the score, with an optional pickup flash beside it ---
+    # The flash carries color codes, so pad by visible length (term.length)
+    # to clear the rest of the row without counting invisible escape bytes.
+    row0 = f"SCORE {state.score}"
+    if flash is not None:
+        flash_text, flash_good = flash
+        flash_color = term.green if flash_good else term.red
+        row0 += "   " + flash_color(flash_text)
+    pad0 = " " * max(0, width - term.length(row0))
+    out.append(term.move_xy(origin_x, origin_y + box_h) + row0 + pad0)
+
+    # --- HUD row 1: the color-coded sanity bar ---
+    # The bar is filled in proportion to sanity, colored by danger level, and
+    # followed by the rounded sanity number.
+    fraction = max(0.0, min(1.0, state.sanity / config.sanity_max))
+    filled = round(fraction * SANITY_BAR_WIDTH)
+    bar = SANITY_BAR_FILLED * filled + SANITY_BAR_EMPTY * (SANITY_BAR_WIDTH - filled)
+    color = _sanity_color(term, state.sanity, config)
+    row1 = f"SANITY {color(bar)} {round(state.sanity):3d}"
+    pad1 = " " * max(0, width - term.length(row1))
+    out.append(term.move_xy(origin_x, origin_y + box_h + 1) + row1 + pad1)
 
     # Send the whole frame to the terminal in a single write.
     print("".join(out), end="", flush=True)

@@ -183,7 +183,7 @@ def test_walking_onto_an_item_collects_it():
     state = make_state()
     # Put the player next to one known item; ignore the auto-spawned ones.
     state.player = (5, 5)
-    state.items = {(6, 5)}
+    state.items = {(6, 5): 12.0}
     # Step right, onto the item's cell.
     state.tick({"right"}, dt=0.05)
     # The item the player stepped onto is gone from the floor.
@@ -202,7 +202,7 @@ def test_collecting_an_item_refills_to_the_cap():
     assert len(state.items) == 6
     # Park the player beside one item and remove the rest so the step is known.
     state.player = (5, 5)
-    state.items = {(6, 5)}
+    state.items = {(6, 5): 12.0}
     # Step onto the item, collecting it.
     state.tick({"right"}, dt=0.05)
     # The pickup was replaced — the floor is back up to the cap.
@@ -220,16 +220,16 @@ def test_score_increments_by_one_per_pickup():
     assert state.score == 0
     # Stage one known item beside the player and collect it.
     state.player = (5, 5)
-    state.items = {(6, 5)}
+    state.items = {(6, 5): 12.0}
     state.tick({"right"}, dt=0.05)
     # One pickup -> score of one.
     assert state.score == 1
     # A tick that walks onto no item must not change the score.
-    state.items = set()
+    state.items = {}
     state.tick({"right"}, dt=0.05)
     assert state.score == 1
     # Stage a second known item and collect it too.
-    state.items = {(state.player[0] + 1, state.player[1])}
+    state.items = {(state.player[0] + 1, state.player[1]): 12.0}
     state.tick({"right"}, dt=0.05)
     # Two pickups -> score of two.
     assert state.score == 2
@@ -244,11 +244,188 @@ def test_tick_returns_a_pickup_event_for_each_collected_item():
     state = make_state()
     # A tick that walks onto no item reports nothing.
     state.player = (5, 5)
-    state.items = set()
+    state.items = {}
     assert state.tick({"right"}, dt=0.05) == []
     # Stage a known item and step onto it.
     state.player = (5, 5)
-    state.items = {(6, 5)}
+    state.items = {(6, 5): 12.0}
     events = state.tick({"right"}, dt=0.05)
-    # Exactly one Pickup, carrying the cell the item was collected from.
-    assert events == [Pickup(cell=(6, 5))]
+    # Exactly one Pickup, carrying the cell and the revealed karma swing.
+    assert events == [Pickup(cell=(6, 5), karma=12.0)]
+
+
+# ----------------------------------------------------------------------------
+# Cycle 14 — a new game starts with full sanity
+# ----------------------------------------------------------------------------
+# Sanity is the run's lifeline. A fresh game starts it at the configured
+# starting value — the Standard preset's 100.
+def test_new_game_starts_with_full_sanity():
+    cfg = Config(arena_width=60, arena_height=20)
+    state = GameState.new(random.Random(0), cfg)
+    # Sanity begins at the configured start, not at zero or some other value.
+    assert state.sanity == cfg.sanity_start
+
+
+# ----------------------------------------------------------------------------
+# Cycle 15 — sanity decays passively every tick
+# ----------------------------------------------------------------------------
+# Sanity is not free to keep: every tick drains sanity_decay_per_second worth
+# of it, scaled by how much real time (dt) the tick covered. This is the run's
+# clock — the reason a pure 50/50 gamble still trends toward death.
+def test_sanity_decays_by_rate_times_dt():
+    state = make_state()
+    start = state.sanity
+    # Advance one tick worth of time with nothing else happening.
+    state.tick(set(), dt=0.05)
+    # Sanity dropped by exactly rate x dt — no more, no less.
+    rate = Config(arena_width=60, arena_height=20).sanity_decay_per_second
+    assert state.sanity == pytest.approx(start - rate * 0.05)
+
+
+# ----------------------------------------------------------------------------
+# Cycle 16 — decay never drives sanity below the minimum
+# ----------------------------------------------------------------------------
+# A tick covering a long stretch of time would, unclamped, drain sanity far
+# past zero into negative numbers. Sanity must stop at sanity_min instead.
+def test_decay_clamps_sanity_at_minimum():
+    state = make_state()
+    cfg = Config(arena_width=60, arena_height=20)
+    # A huge dt so raw decay (rate x dt) would overshoot well past zero.
+    state.tick(set(), dt=1000.0)
+    # Sanity sits exactly on the floor, never below it.
+    assert state.sanity == cfg.sanity_min
+
+
+# ----------------------------------------------------------------------------
+# Cycle 17 — every item carries a hidden karma swing, rolled 50/50
+# ----------------------------------------------------------------------------
+# An item is no longer just a cell: it maps its cell to a karma value rolled
+# at spawn — either good karma or bad karma, nothing in between. Across many
+# seeds both outcomes appear, proving the roll is a real gamble.
+def test_items_carry_karma_rolled_good_or_bad():
+    cfg = Config(arena_width=60, arena_height=20, item_cap=6)
+    seen = set()
+    for seed in range(20):
+        state = GameState.new(random.Random(seed), cfg)
+        # Each item's value is its karma swing — good or bad, never anything else.
+        for karma in state.items.values():
+            assert karma in (cfg.karma_good, cfg.karma_bad)
+            seen.add(karma)
+    # Both outcomes show up across the seeds — the karma roll is a true 50/50.
+    assert seen == {cfg.karma_good, cfg.karma_bad}
+
+
+# ----------------------------------------------------------------------------
+# Cycle 18 — collecting a good item raises sanity by its karma
+# ----------------------------------------------------------------------------
+# A good item is the reward side of the gamble: walking onto it adds its karma
+# (a positive swing) to sanity. dt is zero here so passive decay does not blur
+# the karma swing under test.
+def test_collecting_a_good_item_raises_sanity():
+    state = make_state()
+    cfg = Config(arena_width=60, arena_height=20)
+    # Start mid-range so a good swing has clear room to climb.
+    state.sanity = 50.0
+    state.player = (5, 5)
+    state.items = {(6, 5): cfg.karma_good}
+    # Step onto the good item; dt=0 isolates karma from decay.
+    state.tick({"right"}, dt=0.0)
+    # Sanity rose by exactly the item's good karma.
+    assert state.sanity == 50.0 + cfg.karma_good
+
+
+# ----------------------------------------------------------------------------
+# Cycle 19 — collecting a bad item lowers sanity by its karma
+# ----------------------------------------------------------------------------
+# A bad item is the punishing side of the gamble: its karma is a negative
+# swing, so walking onto it drains sanity.
+def test_collecting_a_bad_item_lowers_sanity():
+    state = make_state()
+    cfg = Config(arena_width=60, arena_height=20)
+    # Start mid-range so a bad swing has clear room to fall.
+    state.sanity = 50.0
+    state.player = (5, 5)
+    state.items = {(6, 5): cfg.karma_bad}
+    # Step onto the bad item; dt=0 isolates karma from decay.
+    state.tick({"right"}, dt=0.0)
+    # Sanity fell by exactly the item's bad karma.
+    assert state.sanity == 50.0 + cfg.karma_bad
+
+
+# ----------------------------------------------------------------------------
+# Cycle 20 — a good swing never pushes sanity past the maximum
+# ----------------------------------------------------------------------------
+# Collecting a good item near full sanity must stop at sanity_max, not spill
+# over it — the extra karma is simply lost.
+def test_good_karma_clamps_sanity_at_maximum():
+    state = make_state()
+    cfg = Config(arena_width=60, arena_height=20)
+    # Sit close to the ceiling, so a full good swing would overshoot it.
+    state.sanity = cfg.sanity_max - 5.0
+    state.player = (5, 5)
+    state.items = {(6, 5): cfg.karma_good}
+    state.tick({"right"}, dt=0.0)
+    # Sanity is pinned to the ceiling, not above it.
+    assert state.sanity == cfg.sanity_max
+
+
+# ----------------------------------------------------------------------------
+# Cycle 21 — a bad swing never pushes sanity below the minimum
+# ----------------------------------------------------------------------------
+# Collecting a bad item with little sanity left must stop at sanity_min, never
+# going negative.
+def test_bad_karma_clamps_sanity_at_minimum():
+    state = make_state()
+    cfg = Config(arena_width=60, arena_height=20)
+    # Sit just above the floor, so a full bad swing would overshoot it.
+    state.sanity = 5.0
+    state.player = (5, 5)
+    state.items = {(6, 5): cfg.karma_bad}
+    state.tick({"right"}, dt=0.0)
+    # Sanity is pinned to the floor, never below it.
+    assert state.sanity == cfg.sanity_min
+
+
+# ----------------------------------------------------------------------------
+# Cycle 22 — the Pickup event carries the swing the shell flashes
+# ----------------------------------------------------------------------------
+# The shell flashes "+12" or "-12" on pickup, so the Pickup event must report
+# the exact karma swing the collected item revealed.
+def test_pickup_event_carries_the_karma_swing():
+    state = make_state()
+    state.player = (5, 5)
+    # A bad item, so the reported karma is plainly distinct from a good one.
+    state.items = {(6, 5): -12.0}
+    events = state.tick({"right"}, dt=0.0)
+    # The Pickup reports both the cell and the revealed bad-karma swing.
+    assert events == [Pickup(cell=(6, 5), karma=-12.0)]
+
+
+# ----------------------------------------------------------------------------
+# Cycle 23 — the run ends the moment sanity reaches zero
+# ----------------------------------------------------------------------------
+# Sanity at zero is death: the run-over flag flips on the very tick sanity
+# bottoms out, so the shell can stop the loop at once.
+def test_run_ends_when_sanity_reaches_zero():
+    state = make_state()
+    # A fresh run is underway, not over.
+    assert state.run_over is False
+    # Sit one point above the floor, then a long tick of decay tips it to zero.
+    state.sanity = 1.0
+    state.tick(set(), dt=1.0)
+    # Sanity bottomed out and the run is now over.
+    assert state.sanity == 0.0
+    assert state.run_over is True
+
+
+# ----------------------------------------------------------------------------
+# Cycle 24 — the run stays alive while sanity is still positive
+# ----------------------------------------------------------------------------
+# A tick of ordinary decay that leaves sanity above zero must not end the run.
+def test_run_stays_alive_while_sanity_positive():
+    state = make_state()
+    # One ordinary tick — decay barely dents full sanity.
+    state.tick(set(), dt=0.05)
+    # Sanity is still well above the floor, so the run continues.
+    assert state.sanity > 0
+    assert state.run_over is False

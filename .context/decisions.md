@@ -1,7 +1,7 @@
 ---
 type: decisions
 project: karma-rush
-updated: 2026-05-20
+updated: 2026-05-21
 tags: [context, decisions]
 ---
 
@@ -76,3 +76,11 @@ Starting values: passive decay 1.5/sec, good karma `+12`, bad karma `−12`, ite
 
 ### D20 — Architecture: pure core + thin terminal shell
 The game splits into a pure **core engine** and a thin **terminal shell**. The core (`GameState.tick(intents, dt)`) imports no `blessed`, reads no real clock, and touches no files — time arrives as `dt`, randomness as an injected RNG; the shell does all rendering, input, and I/O. **Why:** this is the consequence of D16 + D17 — it is the only thing that makes the rules unit-testable, and `dt`-driving keeps frame hitches from changing game speed. Load-bearing: keep `blessed` out of the core from the first commit.
+
+---
+
+## 2026-05-21 — Items carry karma as a dict `{cell: karma}`
+
+**Decision:** Slice 3 reshaped `GameState.items` from a `set` of `(x, y)` cells to a `dict` mapping each cell to its hidden karma swing (`+12` / `-12`), rolled 50/50 at spawn.
+**Why:** Each item needs a per-item karma. A dict keeps cell lookup O(1) (collection still does `player in items`), karma reads as `items[cell]`, and `render.py` iterating `for ix, iy in state.items` works unchanged because dict iteration yields keys. **Rejected:** a set of frozen `Item` objects — would force `render.py` and every Slice-2 test off plain cells for no gain.
+**Reversibility:** hard — `core.py`, `render.py`, and `test_core.py` all read the shape.

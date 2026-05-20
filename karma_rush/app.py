@@ -39,6 +39,12 @@ def run(term, config):
     # during normal play by NOT clearing every frame).
     was_too_small = False
 
+    # Pickup flash state: the transient "+12 / -12" feedback shown for a short
+    # while after a collection. `flash` is a (text, is_good) pair or None;
+    # `flash_remaining` counts down the seconds it stays on screen.
+    flash = None
+    flash_remaining = 0.0
+
     # The loop runs forever until a "return" below ends it.
     while True:
         # --- Case 1: the window is too small to fit the arena ---
@@ -74,10 +80,29 @@ def run(term, config):
             return
 
         # Advance the game one tick, passing the held directions and dt.
-        state.tick(intents.directions, dt)
+        # tick reports back any items collected this frame.
+        events = state.tick(intents.directions, dt)
 
-        # Draw the new picture.
-        render.render_frame(term, state, config)
+        # Age a flash already on screen; drop it once its time runs out.
+        if flash is not None:
+            flash_remaining -= dt
+            if flash_remaining <= 0:
+                flash = None
+
+        # A pickup this frame starts a fresh flash showing the karma swing.
+        # tick collects at most one item per frame; read the last to be safe.
+        if events:
+            karma = events[-1].karma
+            flash = (f"{int(karma):+d}", karma > 0)
+            flash_remaining = config.pickup_flash_seconds
+
+        # Draw the new picture, including any active pickup flash.
+        render.render_frame(term, state, config, flash)
+
+        # Sanity hitting zero ends the run immediately: the final frame is
+        # already drawn above, so stop the loop now.
+        if state.run_over:
+            return
 
         # --- Pace the loop so it runs at a steady 20 ticks per second ---
         # Sleep off whatever time is left in this frame's budget.

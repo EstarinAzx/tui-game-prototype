@@ -18,11 +18,14 @@ from dataclasses import dataclass
 # Pickup — a thing that happened: the player collected an item
 # ----------------------------------------------------------------------------
 # tick() returns a list of these so the shell can react (flash, sound, ...).
-# For now it just carries the cell the item was collected from.
+# It carries the cell the item sat on and the karma swing it revealed, so the
+# shell can flash "+12" or "-12" in the right color.
 @dataclass(frozen=True)
 class Pickup:
     # The (x, y) cell the collected item sat on.
     cell: tuple
+    # The item's revealed karma: a positive swing for good, negative for bad.
+    karma: float
 
 
 # ----------------------------------------------------------------------------
@@ -39,10 +42,17 @@ class GameState:
         self._rng = rng
         # The player's cell as an (x, y) pair: x is the column, y is the row.
         self.player = player
-        # The set of item cells currently on the floor.
-        self.items = set()
+        # The items on the floor, as a dict mapping each item's (x, y) cell to
+        # its hidden karma swing — the sanity change collecting it will apply.
+        self.items = {}
         # How many items the player has collected this run.
         self.score = 0
+        # The player's sanity: the run's lifeline, between sanity_min and
+        # sanity_max. It drains every second and swings on every pickup.
+        self.sanity = config.sanity_start
+        # Whether the run has ended. It flips True the tick sanity hits the
+        # floor; the shell watches this to stop the game loop.
+        self.run_over = False
 
     # Make a brand-new game ready to play.
     # rng is the injected random source; config is the settings bundle.
@@ -56,11 +66,25 @@ class GameState:
         return state
 
     # ------------------------------------------------------------------------
+    # _roll_karma — flip the hidden coin for one new item
+    # ------------------------------------------------------------------------
+    # Every item is a 50/50 gamble. This rolls the injected RNG once and
+    # returns the karma swing the item will carry: good karma on a winning
+    # roll, bad karma otherwise. The roll happens at spawn; the player never
+    # sees it until pickup.
+    def _roll_karma(self):
+        cfg = self._config
+        if self._rng.random() < cfg.karma_good_chance:
+            return cfg.karma_good
+        return cfg.karma_bad
+
+    # ------------------------------------------------------------------------
     # _refill_items — top the floor back up to the item cap
     # ------------------------------------------------------------------------
     # Spawns items at random empty cells until the floor holds item_cap of
     # them. An empty cell is one with neither the player nor another item on
-    # it. If the arena has no room left, it simply stops early.
+    # it. Each new item gets a freshly rolled hidden karma. If the arena has
+    # no room left, it simply stops early.
     def _refill_items(self):
         cfg = self._config
         while len(self.items) < cfg.item_cap:
@@ -74,8 +98,19 @@ class GameState:
             # No room left — stop rather than loop forever.
             if not empty:
                 return
-            # Pick one free cell with the injected RNG and place an item.
-            self.items.add(self._rng.choice(empty))
+            # Pick one free cell with the injected RNG, roll its hidden karma,
+            # and place the item on the floor.
+            cell = self._rng.choice(empty)
+            self.items[cell] = self._roll_karma()
+
+    # ------------------------------------------------------------------------
+    # _clamp_sanity — pin sanity inside its allowed range
+    # ------------------------------------------------------------------------
+    # Sanity must never stray outside [sanity_min, sanity_max]. Every change to
+    # sanity — decay or a karma swing — runs through here afterward.
+    def _clamp_sanity(self):
+        cfg = self._config
+        self.sanity = max(cfg.sanity_min, min(cfg.sanity_max, self.sanity))
 
     # ------------------------------------------------------------------------
     # tick — advance the game by one frame
@@ -84,6 +119,10 @@ class GameState:
     # "left", "right"). dt is how many seconds passed since the last tick.
     # It returns a list of things that happened this frame (empty for now).
     def tick(self, intents, dt):
+        # Sanity drains a little every tick, scaled by how much time passed.
+        # This passive decay is the run's real clock.
+        self.sanity -= self._config.sanity_decay_per_second * dt
+        self._clamp_sanity()
         # Copy the directions into a set so "in" checks are easy and safe.
         held = set(intents)
         # Work out the sideways step: +1 for right, -1 for left. Holding both
@@ -104,10 +143,17 @@ class GameState:
         # Things that happened this frame, reported back to the shell.
         events = []
         # If the player landed on an item, collect it: take it off the floor,
-        # score the pickup, and spawn a replacement to keep the floor stocked.
+        # score the pickup, apply its hidden karma to sanity (clamped), report
+        # the swing, and spawn a replacement to keep the floor stocked.
         if self.player in self.items:
-            self.items.discard(self.player)
+            karma = self.items.pop(self.player)
             self.score += 1
-            events.append(Pickup(cell=self.player))
+            self.sanity += karma
+            self._clamp_sanity()
+            events.append(Pickup(cell=self.player, karma=karma))
             self._refill_items()
+        # Sanity bottoming out ends the run immediately. Decay or a bad-karma
+        # pickup can trip this in the same tick it happens.
+        if self.sanity <= self._config.sanity_min:
+            self.run_over = True
         return events
