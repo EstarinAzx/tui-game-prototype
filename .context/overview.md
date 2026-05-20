@@ -10,9 +10,9 @@ tags: [context, overview]
 **Project:** KARMA RUSH
 **One-liner:** A 60-second top-down TUI arcade game — hoard mysterious items, each a hidden 50/50 karma gamble that swings your sanity; survive the minute and chase the high score.
 
-_Status: **specced, not yet built.** No code exists. The next agent builds it from `ISSUES.md`._
+_Status: **Slice 1 built.** Scaffold, arena, and movable player exist with a tested `blessed`-free core. Next: Slice 2 (items) — see [[active-work]]._
 
-## Layout (planned)
+## Layout
 
 - `main.py` — entry point; sets up/tears down raw terminal mode, launches the app loop.
 - `karma_rush/` — the game package: config, core engine, rendering, input, screens, high-score store, app/orchestration.
@@ -32,8 +32,8 @@ _Status: **specced, not yet built.** No code exists. The next agent builds it fr
 - **Build spec:** `PRD.md` (problem, solution, modules, mechanics, tests).
 - **Work breakdown:** `ISSUES.md` — start at Slice 1.
 - **Settled design:** [[decisions]] — 19 grilled decisions plus the architecture call. Do not re-litigate.
-- **Handoff state:** [[active-work]].
-- Nothing is built yet; the first agent scaffolds Slice 1.
+- **Handoff state:** [[active-work]] — current focus and where to pick up.
+- **Built so far:** Slice 1 (`karma_rush/`, `main.py`, `tests/`). Next is Slice 2.
 
 ## Conventions
 
