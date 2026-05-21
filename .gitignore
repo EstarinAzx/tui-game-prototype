@@ -24,3 +24,6 @@ highscore.json
 Thumbs.db
 .idea/
 .vscode/
+.claude/
+.antigravity/
+.agent/
