@@ -1,20 +1,20 @@
-# ============================================================================
-# KARMA RUSH — Config
-# ============================================================================
-# This file is a tidy box of settings. Every number you can tune to change how
-# the game feels lives here, and nowhere else. None of this is game logic — it
-# is just data — so rebalancing the game never means hunting through code.
+# ------------------- config.py — tunable game constants ------------------- #
+# Depends on:
+#   - dataclasses (stdlib): frozen dataclass for the immutable Config bundle.
+#
+# Data shapes:
+#   - Config: frozen dataclass holding every tuning constant in the game.
+#   - DEFAULT: a ready-made Config using the PRD's Standard balance preset.
+#
+# All data, no game logic — rebalancing never means hunting through code.
 
-# A "dataclass" is a short, tidy way to bundle named values together.
 from dataclasses import dataclass
 
 
-# ----------------------------------------------------------------------------
-# The Config bundle
-# ----------------------------------------------------------------------------
-# Config is the single source of truth for every tuning constant in the game.
-# It is "frozen", which means once a Config is built its values cannot be
-# changed by accident — you make a fresh copy to get different numbers.
+# --------------------------- The Config bundle ---------------------------- #
+
+# Single source of truth for every tuning constant. Frozen so values cannot be
+# mutated by accident — make a fresh copy to rebalance.
 @dataclass(frozen=True)
 class Config:
     # --- The game loop ---
@@ -61,6 +61,5 @@ class Config:
     highscore_path: str = "highscore.json"
 
 
-# A ready-made Config that uses the "Standard" balance preset from the PRD.
-# Most of the game uses this one; tests can build their own smaller Config.
+# The Standard balance preset. Most of the game uses this; tests build their own.
 DEFAULT = Config()
