@@ -4,37 +4,123 @@
 #   - random (stdlib): the RNG handed to the core — injected here so test runs
 #     stay deterministic; the core never makes its own randomness.
 #   - karma_rush.core.GameState: the game rules and state this loop advances.
+#   - karma_rush.countdown.Countdown: the pre-run 3-2-1 timer.
 #   - karma_rush.input: reads the keyboard into Intents.
 #   - karma_rush.render: draws each frame and the resize prompt.
-#   - karma_rush.screens: draws the game-over screen between runs.
+#   - karma_rush.screens: draws the title, countdown, and game-over screens.
 #
-# Owns the game loop (read keys -> advance -> draw) and the run/game-over/
-# restart cycle, but holds no game rules — those all live in the core.
+# Owns the app state machine — TITLE -> COUNTDOWN -> PLAYING -> GAMEOVER, with
+# R looping GAMEOVER -> COUNTDOWN — and the per-phase loops, but holds no game
+# rules: those all live in the core.
 
 import time
 import random
 
 from karma_rush.core import GameState
+from karma_rush.countdown import Countdown
 from karma_rush import input as game_input
 from karma_rush import render
 from karma_rush import screens
 
 
-# ------------------------- run — the run/restart cycle -------------------- #
+# ------------------------- The app state machine ------------------------- #
 
-# Run games until the player quits: play a run, show its game-over screen, and
-# either start a fresh run (R) or return (Q/Esc). term is the blessed terminal
-# (already in raw mode); config is the settings bundle.
+# The four phases the app moves through. TITLE waits for a key, COUNTDOWN runs
+# the 3-2-1, PLAYING is one run, GAMEOVER is the end screen.
+TITLE = "title"
+COUNTDOWN = "countdown"
+PLAYING = "playing"
+GAMEOVER = "gameover"
+
+# Transition table: (phase, outcome) -> next phase. The outcome is whatever the
+# phase's handler returned. Quit is handled separately — it ends from anywhere.
+_TRANSITIONS = {
+    (TITLE, "start"): COUNTDOWN,
+    (COUNTDOWN, "play"): PLAYING,
+    (PLAYING, "ended"): GAMEOVER,
+    (GAMEOVER, "restart"): COUNTDOWN,
+}
+
+
+# Given the phase just finished and its outcome, return the next phase — or
+# None to quit, which any phase can yield.
+def next_phase(phase, outcome):
+    # Quit short-circuits the table — every phase can bail out the same way.
+    if outcome == "quit":
+        return None
+    return _TRANSITIONS[(phase, outcome)]
+
+
+# ----------------------- run — drive the state machine ------------------- #
+
+# Run the app: step through phases until one yields a quit. term is the blessed
+# terminal (already in raw mode); config is the settings bundle.
 def run(term, config):
+    phase = TITLE
+    # The finished GameState, carried from PLAYING into GAMEOVER.
+    state = None
+
+    while phase is not None:
+        if phase == TITLE:
+            outcome = _title(term, config)
+        elif phase == COUNTDOWN:
+            outcome = _countdown(term, config)
+        elif phase == PLAYING:
+            state = _play_run(term, config)
+            # _play_run returns None on a mid-run quit, else the finished run.
+            outcome = "quit" if state is None else "ended"
+        else:  # GAMEOVER
+            outcome = "restart" if _game_over(term, config, state) else "quit"
+
+        phase = next_phase(phase, outcome)
+
+
+# ------------------------- _title — the title screen --------------------- #
+
+# Show the title screen and wait. Returns "start" on any key, "quit" on Q/Esc.
+def _title(term, config):
+    screens.render_title(term)
+    frame_seconds = 1.0 / config.tick_hz
+
     while True:
-        # _play_run returns the finished state, or None if the player quit
-        # mid-run — a mid-run quit leaves the cycle entirely.
-        state = _play_run(term, config)
-        if state is None:
-            return
-        # The run ended on its own — game-over screen; False (Q/Esc) quits.
-        if not _game_over(term, config, state):
-            return
+        intents = game_input.read_intents(term)
+        # Q/Esc checked before any_key so quitting beats starting on that key.
+        if intents.quit:
+            return "quit"
+        if intents.any_key:
+            return "start"
+        # Idle at the frame rate so the wait does not spin the CPU.
+        time.sleep(frame_seconds)
+
+
+# --------------------- _countdown — the 3-2-1 countdown ------------------ #
+
+# Play the 3-2-1 countdown before a run. Returns "play" when it finishes, or
+# "quit" if the player bails out with Q/Esc.
+def _countdown(term, config):
+    countdown = Countdown(config.countdown_seconds)
+    frame_seconds = 1.0 / config.tick_hz
+    last_time = time.monotonic()
+
+    while True:
+        frame_start = time.monotonic()
+        dt = frame_start - last_time
+        last_time = frame_start
+
+        intents = game_input.read_intents(term)
+        if intents.quit:
+            return "quit"
+
+        countdown.tick(dt)
+        # Finished — start the run without ever painting a "0" frame.
+        if countdown.done:
+            return "play"
+        screens.render_countdown(term, countdown.number)
+
+        # Pace the loop: sleep off whatever is left in the frame budget.
+        leftover = frame_seconds - (time.monotonic() - frame_start)
+        if leftover > 0:
+            time.sleep(leftover)
 
 
 # ----------------------- _play_run — one full run ------------------------- #
