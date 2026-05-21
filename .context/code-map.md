@@ -11,11 +11,11 @@ Where each piece of logic lives. The codebase splits two ways — see [[decision
 D20 and `docs/adr/0001`: a pure **core** owns the rules, a **shell** owns the
 terminal. Domain terms (Run, Tick, Phase, Intents…) are defined in `CONTEXT.md`.
 
-```
-main.py → app.py (phase machine)
-            ├── core.py + countdown.py        ← pure: blessed-free, dt-driven
-            └── render / screens / input / highscore  ← shell: terminal + files
-```
+**Layers** — [main.py](../main.py) boots [app.py](../karma_rush/app.py), the
+phase machine, which drives:
+
+- **core** — pure rules, `blessed`-free, dt-driven: [core.py](../karma_rush/core.py), [countdown.py](../karma_rush/countdown.py), [config.py](../karma_rush/config.py)
+- **shell** — terminal + files: [render.py](../karma_rush/render.py), [screens.py](../karma_rush/screens.py), [input.py](../karma_rush/input.py), [highscore.py](../karma_rush/highscore.py)
 
 ## Entry
 
