@@ -6,8 +6,9 @@
 #
 # Data shapes:
 #   - No types of its own; END_REASON_TEXT maps a core end_reason to its label.
-#   - A "screen" is a list of (text, style) lines — style is a term color
-#     callable or None — drawn centered by _draw_centered.
+#   - A lines block is a list of (text, style) pairs — style is a term color
+#     callable or None — drawn centered by _draw_centered. One block fills one
+#     Screen (title, countdown, game-over).
 #
 # The non-arena screens — title, countdown, game-over — kept apart from
 # render.py's per-frame arena draw.
@@ -72,26 +73,26 @@ def render_countdown(term, number):
 # ---------------------------- Game-over screen ---------------------------- #
 
 # Draw the game-over screen: why the run ended, the final (frozen) score, the
-# persistent best, and the keys to play again or quit. state is the finished
-# GameState; best is the stored high score, is_new_best true when this run
-# just set it.
-def render_game_over(term, state, best=0, is_new_best=False):
+# high score, and the keys to play again or quit. state is the finished
+# GameState; high_score is the stored value, is_new_high_score true when this
+# run just set it.
+def render_game_over(term, state, high_score=0, is_new_high_score=False):
     headline = END_REASON_TEXT.get(state.end_reason, "GAME OVER")
     # Red headline for a sanity loss, yellow for a clean time-out.
     headline_color = term.red if state.end_reason == "sanity" else term.yellow
 
-    # A new best gets a green call-out; otherwise show the score to beat.
-    if is_new_best:
-        best_line = ("NEW HIGH SCORE!", term.green)
+    # A new high score gets a green call-out; otherwise show the score to beat.
+    if is_new_high_score:
+        high_score_line = ("NEW HIGH SCORE!", term.green)
     else:
-        best_line = (f"BEST {best}", term.dim)
+        high_score_line = (f"BEST {high_score}", term.dim)
 
     lines = [
         ("GAME OVER", term.bold),
         (headline, headline_color),
         ("", None),
         (f"FINAL SCORE {state.score}", term.bold),
-        best_line,
+        high_score_line,
         ("", None),
         ("[R] play again     [Q] quit", term.dim),
     ]

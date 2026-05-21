@@ -109,9 +109,9 @@ class GameState:
     # ------------------ tick — advance the game one frame ----------------- #
 
     # Advance one frame: decay sanity, move the player, collect any item.
-    # intents is the set of held directions; dt is seconds since the last tick.
-    # Returns the Pickup events from this frame.
-    def tick(self, intents, dt):
+    # directions is the set of held directions; dt is seconds since the last
+    # tick. Returns the Pickup events from this frame.
+    def tick(self, directions, dt):
         # Once the run is over, freeze everything — a late tick changes nothing,
         # so the game-over screen shows the score and clock at the end moment.
         if self.run_over:
@@ -121,7 +121,7 @@ class GameState:
         # Passive decay scaled by dt.
         self.sanity -= self._config.sanity_decay_per_second * dt
         self._clamp_sanity()
-        held = set(intents)
+        held = set(directions)
         # Opposing keys cancel: +1 and -1 sum to 0. Rows count downward, so
         # "down" adds to y and "up" subtracts.
         dx = (1 if "right" in held else 0) - (1 if "left" in held else 0)

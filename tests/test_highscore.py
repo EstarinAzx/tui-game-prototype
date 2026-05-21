@@ -18,15 +18,15 @@ def test_missing_file_reads_zero(tmp_path):
 
 
 # Cycle 42 — a saved score round-trips: load reads back what save wrote, and
-# save reports the resulting best.
+# save reports the resulting high score.
 def test_save_then_load_round_trips(tmp_path):
     path = str(tmp_path / "highscore.json")
     assert save_high_score(path, 100) == 100
     assert load_high_score(path) == 100
 
 
-# Cycle 43 — saving a score below the stored best leaves the best untouched,
-# and save still reports the (unchanged) best.
+# Cycle 43 — saving a score below the stored high score leaves it untouched,
+# and save still reports the (unchanged) high score.
 def test_lower_score_does_not_overwrite_higher_best(tmp_path):
     path = str(tmp_path / "highscore.json")
     save_high_score(path, 100)

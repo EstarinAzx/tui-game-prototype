@@ -1,4 +1,4 @@
-# --------------- highscore.py — persistent best-score store --------------- #
+# --------------- highscore.py — persistent high-score store --------------- #
 # Depends on:
 #   - json (stdlib): the on-disk score file is a small JSON object.
 #   - os (stdlib): checks whether the score file exists yet.
@@ -12,13 +12,13 @@
 import json
 import os
 
-# The JSON key the best score is stored under.
+# The JSON key the high score is stored under.
 _SCORE_KEY = "high_score"
 
 
 # ----------------------------- Load / save ------------------------------- #
 
-# Read the best score from path. A missing or unreadable file reads as 0, so a
+# Read the high score from path. A missing or unreadable file reads as 0, so a
 # first launch — or a half-written file from a crash — never breaks the game.
 def load_high_score(path):
     if not os.path.exists(path):
@@ -30,12 +30,12 @@ def load_high_score(path):
         return 0
 
 
-# Persist score only when it beats the stored best; return the resulting best.
-# Safe to call after every run — a worse run is a cheap read and no write.
+# Persist score only when it beats the stored value; return the resulting high
+# score. Safe to call after every run — a worse run is a cheap read, no write.
 def save_high_score(path, score):
-    best = load_high_score(path)
-    if score <= best:
-        return best
+    high_score = load_high_score(path)
+    if score <= high_score:
+        return high_score
     # Write to a temp file, then atomically swap it in: a crash mid-write
     # leaves the old file intact instead of a truncated one load reads as 0.
     tmp_path = path + ".tmp"

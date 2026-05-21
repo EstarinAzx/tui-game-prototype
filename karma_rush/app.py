@@ -8,9 +8,9 @@
 #   - karma_rush.input: reads the keyboard into Intents.
 #   - karma_rush.render: draws each frame and the resize prompt.
 #   - karma_rush.screens: draws the title, countdown, and game-over screens.
-#   - karma_rush.highscore: loads and saves the persistent best score.
+#   - karma_rush.highscore: loads and saves the persistent high score.
 #
-# Owns the app state machine — TITLE -> COUNTDOWN -> PLAYING -> GAMEOVER, with
+# Owns the phase machine — TITLE -> COUNTDOWN -> PLAYING -> GAMEOVER, with
 # R looping GAMEOVER -> COUNTDOWN — and the per-phase loops, but holds no game
 # rules: those all live in the core.
 
@@ -25,7 +25,7 @@ from karma_rush import screens
 from karma_rush import highscore
 
 
-# ------------------------- The app state machine ------------------------- #
+# --------------------------- The phase machine -------------------------- #
 
 # The four phases the app moves through. TITLE waits for a key, COUNTDOWN runs
 # the 3-2-1, PLAYING is one run, GAMEOVER is the end screen.
@@ -53,18 +53,18 @@ def next_phase(phase, outcome):
     return _TRANSITIONS[(phase, outcome)]
 
 
-# ----------------------- run — drive the state machine ------------------- #
+# -------------------- run_session — drive the state machine -------------- #
 
-# Run the app: step through phases until one yields a quit. term is the blessed
-# terminal (already in raw mode); config is the settings bundle.
-def run(term, config):
+# Run one Session: step through phases until one yields a quit. term is the
+# blessed terminal (already in raw mode); config is the settings bundle.
+def run_session(term, config):
     phase = TITLE
     # The finished GameState, carried from PLAYING into GAMEOVER.
     state = None
-    # Best score persists across runs: loaded once at launch, re-saved each
-    # time a run beats it. is_new_best flags that for the game-over screen.
-    best = highscore.load_high_score(config.highscore_path)
-    is_new_best = False
+    # High score persists across runs: loaded once at launch, re-saved each
+    # time a run beats it. is_new_high_score flags that for the game-over screen.
+    high_score = highscore.load_high_score(config.highscore_path)
+    is_new_high_score = False
 
     while phase is not None:
         if phase == TITLE:
@@ -72,19 +72,19 @@ def run(term, config):
         elif phase == COUNTDOWN:
             outcome = _countdown(term, config)
         elif phase == PLAYING:
-            state = _play_run(term, config, best)
+            state = _play_run(term, config, high_score)
             # _play_run returns None on a mid-run quit, else the finished run.
             outcome = "quit" if state is None else "ended"
-            # A finished run may beat the stored best — persist it if so.
+            # A finished run may beat the stored high score — persist if so.
             if state is not None:
-                is_new_best = state.score > best
-                best = highscore.save_high_score(
+                is_new_high_score = state.score > high_score
+                high_score = highscore.save_high_score(
                     config.highscore_path, state.score
                 )
         else:  # GAMEOVER
             outcome = (
                 "restart"
-                if _game_over(term, config, state, best, is_new_best)
+                if _game_over(term, config, state, high_score, is_new_high_score)
                 else "quit"
             )
 
@@ -97,7 +97,7 @@ def run(term, config):
 # player quits. Returns True on quit, False once the terminal fits. Every
 # phase routes through this so a too-small window never shows a broken screen.
 def _wait_for_resize(term, config):
-    frame_seconds = 1.0 / config.tick_hz
+    frame_seconds = 1.0 / config.frame_hz
     while render.is_terminal_too_small(term, config):
         render.render_resize_prompt(term, config)
         if game_input.read_intents(term).quit:
@@ -111,7 +111,7 @@ def _wait_for_resize(term, config):
 # Show the title screen and wait. Returns "start" on any key, "quit" on Q/Esc.
 def _title(term, config):
     screens.render_title(term)
-    frame_seconds = 1.0 / config.tick_hz
+    frame_seconds = 1.0 / config.frame_hz
 
     while True:
         # Too-small window: show the resize prompt, then repaint the title.
@@ -135,7 +135,7 @@ def _title(term, config):
 # "quit" if the player bails out with Q/Esc.
 def _countdown(term, config):
     countdown = Countdown(config.countdown_seconds)
-    frame_seconds = 1.0 / config.tick_hz
+    frame_seconds = 1.0 / config.frame_hz
     last_time = time.monotonic()
 
     while True:
@@ -169,13 +169,13 @@ def _countdown(term, config):
 # ----------------------- _play_run — one full run ------------------------- #
 
 # Play one run start to finish. Returns the finished GameState when the run
-# ends (clock or sanity), or None if the player quit mid-run. best is the
-# score to beat, shown in the HUD.
-def _play_run(term, config, best):
+# ends (clock or sanity), or None if the player quit mid-run. high_score is
+# the score to beat, shown in the HUD.
+def _play_run(term, config, high_score):
     state = GameState.new(random.Random(), config)
 
     # One frame's budget. 20 ticks/sec -> 0.05s each.
-    frame_seconds = 1.0 / config.tick_hz
+    frame_seconds = 1.0 / config.frame_hz
 
     last_time = time.monotonic()
 
@@ -220,7 +220,7 @@ def _play_run(term, config, best):
             flash = (f"{int(karma):+d}", karma > 0)
             flash_remaining = config.pickup_flash_seconds
 
-        render.render_frame(term, state, config, flash, best)
+        render.render_frame(term, state, config, flash, high_score)
 
         # The run ended (clock or sanity) — the final frame is drawn above;
         # hand the frozen state back for the game-over screen.
@@ -238,17 +238,17 @@ def _play_run(term, config, best):
 
 # Show the game-over screen and wait for the player's choice. Returns True to
 # play again (R) or False to quit (Q/Esc). state is the finished GameState;
-# best is the stored high score, is_new_best true when this run set it.
-def _game_over(term, config, state, best, is_new_best):
-    screens.render_game_over(term, state, best, is_new_best)
-    frame_seconds = 1.0 / config.tick_hz
+# high_score is the stored value, is_new_high_score true when this run set it.
+def _game_over(term, config, state, high_score, is_new_high_score):
+    screens.render_game_over(term, state, high_score, is_new_high_score)
+    frame_seconds = 1.0 / config.frame_hz
 
     while True:
         # Too-small window: show the resize prompt, then repaint the screen.
         if render.is_terminal_too_small(term, config):
             if _wait_for_resize(term, config):
                 return False
-            screens.render_game_over(term, state, best, is_new_best)
+            screens.render_game_over(term, state, high_score, is_new_high_score)
         intents = game_input.read_intents(term)
         if intents.quit:
             return False

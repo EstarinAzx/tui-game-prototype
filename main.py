@@ -33,7 +33,7 @@ def main():
     # terminal into game mode and — even on a crash — undo all three on exit,
     # leaving the player's shell clean instead of garbled.
     with term.fullscreen(), term.cbreak(), term.hidden_cursor():
-        app.run(term, config.DEFAULT)
+        app.run_session(term, config.DEFAULT)
 
 
 # Only start the game when this file is run directly, not when imported.

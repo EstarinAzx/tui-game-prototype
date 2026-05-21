@@ -18,8 +18,8 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class Config:
     # --- The game loop ---
-    # How many times per second the game updates. 20 means one tick every 0.05s.
-    tick_hz: int = 20
+    # Frames per second — the shell loop rate. 20 means one frame every 0.05s.
+    frame_hz: int = 20
 
     # --- The run ---
     # How long one full game lasts, in seconds.
@@ -59,7 +59,7 @@ class Config:
     sanity_yellow_above: float = 30.0
 
     # --- Files ---
-    # The file name where the best-ever score is saved between launches.
+    # The file name where the high score is saved between launches.
     highscore_path: str = "highscore.json"
 
 
