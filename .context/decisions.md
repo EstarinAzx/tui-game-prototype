@@ -84,3 +84,11 @@ The game splits into a pure **core engine** and a thin **terminal shell**. The c
 **Decision:** Slice 3 reshaped `GameState.items` from a `set` of `(x, y)` cells to a `dict` mapping each cell to its hidden karma swing (`+12` / `-12`), rolled 50/50 at spawn.
 **Why:** Each item needs a per-item karma. A dict keeps cell lookup O(1) (collection still does `player in items`), karma reads as `items[cell]`, and `render.py` iterating `for ix, iy in state.items` works unchanged because dict iteration yields keys. **Rejected:** a set of frozen `Item` objects — would force `render.py` and every Slice-2 test off plain cells for no gain.
 **Reversibility:** hard — `core.py`, `render.py`, and `test_core.py` all read the shape.
+
+---
+
+## 2026-05-21 — Slice 4: `tick` no-ops after `run_over`; sanity loss outranks the clock
+
+**Decision:** Once `GameState.run_over` is set, `tick()` returns `[]` immediately and mutates nothing — score, sanity, `elapsed`, and player all freeze. When a single tick both drains sanity to 0 and runs the clock out, `end_reason` is `"sanity"` (sanity is checked before the clock). `end_reason` is `"time"` | `"sanity"`, `None` while the run is live.
+**Why:** The game-over screen must show the score frozen at the end moment — without the guard a late tick from the shell (or Slice 5's state machine) would keep mutating a finished run. `active-work.md` had flagged "should `tick` no-op once over?" as open; this closes it. Sanity-first priority so a death reads as `SANITY LOST`, not `TIME UP`.
+**Reversibility:** easy — both behaviors are localized to `tick()`.

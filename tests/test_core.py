@@ -287,3 +287,77 @@ def test_run_stays_alive_while_sanity_positive():
     state.tick(set(), dt=0.05)
     assert state.sanity > 0
     assert state.run_over is False
+
+
+# ------------------------ Timer and the run's end ------------------------- #
+
+# Cycle 25 — a new game starts with no time elapsed and no end reason.
+def test_new_game_starts_with_zero_elapsed_and_no_end_reason():
+    state = make_state()
+    assert state.elapsed == 0.0
+    assert state.end_reason is None
+
+
+# Cycle 26 — each tick adds its dt to the elapsed run time.
+def test_tick_accumulates_elapsed_by_dt():
+    state = make_state()
+    state.tick(set(), dt=0.05)
+    state.tick(set(), dt=0.05)
+    state.tick(set(), dt=0.10)
+    assert state.elapsed == pytest.approx(0.20)
+
+
+# Cycle 27 — the run ends with reason "time" once elapsed reaches run_seconds.
+def test_run_ends_with_time_reason_when_clock_runs_out():
+    state = make_state()
+    # One tick advancing the clock the full run length; sanity stays positive.
+    state.tick(set(), dt=Config().run_seconds)
+    assert state.run_over is True
+    assert state.end_reason == "time"
+    assert state.sanity > 0
+
+
+# Cycle 28 — the run ends with reason "sanity" when sanity reaches zero.
+def test_run_ends_with_sanity_reason_when_sanity_hits_zero():
+    state = make_state()
+    state.sanity = 1.0
+    # A short tick: sanity tips to the floor well before the clock runs out.
+    state.tick(set(), dt=1.0)
+    assert state.run_over is True
+    assert state.end_reason == "sanity"
+
+
+# Cycle 29 — once the run is over, tick freezes everything (score at death).
+def test_tick_is_a_no_op_once_the_run_is_over():
+    state = make_state()
+    # End the run on the clock.
+    state.tick(set(), dt=Config().run_seconds)
+    frozen = (state.score, state.elapsed, state.sanity, state.player)
+    # Stage an item one step right and try to walk onto it after the end.
+    nx, ny = state.player[0] + 1, state.player[1]
+    state.items = {(nx, ny): 12.0}
+    events = state.tick({"right"}, dt=1.0)
+    assert events == []
+    assert (state.score, state.elapsed, state.sanity, state.player) == frozen
+
+
+# Cycle 30 — when one tick drains sanity AND runs the clock out, sanity wins.
+def test_sanity_loss_beats_the_clock_when_both_end_the_run():
+    state = make_state()
+    state.sanity = 1.0
+    # dt of a full run length: clock runs out and decay drags sanity to zero.
+    state.tick(set(), dt=Config().run_seconds)
+    assert state.run_over is True
+    assert state.end_reason == "sanity"
+
+
+# Cycle 31 — time_remaining counts down with the run and never goes negative.
+def test_time_remaining_counts_down_and_floors_at_zero():
+    state = make_state()
+    full = Config().run_seconds
+    assert state.time_remaining == full
+    state.tick(set(), dt=10.0)
+    assert state.time_remaining == pytest.approx(full - 10.0)
+    # Ticking past the end leaves the clock at zero, never negative.
+    state.tick(set(), dt=full)
+    assert state.time_remaining == 0.0

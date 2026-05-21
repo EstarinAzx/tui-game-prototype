@@ -5,18 +5,21 @@
 #     touches blessed; the core never sees a key.
 #
 # Data shapes:
-#   - Intents: frozen (directions frozenset, quit bool) — the per-frame request.
+#   - Intents: frozen (directions frozenset, quit bool, restart bool) — the
+#     per-frame request.
 
 from dataclasses import dataclass, field
 
 
 # --------------------- Intents — the per-frame request -------------------- #
 
-# What the player asked for this frame: the directions held, plus a quit flag.
+# What the player asked for this frame: the directions held, a quit flag, and
+# a restart flag (R, used only on the game-over screen).
 @dataclass(frozen=True)
 class Intents:
     directions: frozenset = field(default_factory=frozenset)
     quit: bool = False
+    restart: bool = False
 
 
 # --------------- read_intents — drain the keyboard buffer ----------------- #
@@ -27,6 +30,7 @@ class Intents:
 def read_intents(term):
     directions = set()
     quit_requested = False
+    restart_requested = False
 
     # timeout=0 means "do not wait" — pull keys until the buffer is empty.
     key = term.inkey(timeout=0)
@@ -39,6 +43,8 @@ def read_intents(term):
             ch = str(key).lower()
             if ch == "q":
                 quit_requested = True
+            elif ch == "r":
+                restart_requested = True
             elif key.name == "KEY_UP" or ch == "w":
                 directions.add("up")
             elif key.name == "KEY_DOWN" or ch == "s":
@@ -50,4 +56,8 @@ def read_intents(term):
 
         key = term.inkey(timeout=0)
 
-    return Intents(directions=frozenset(directions), quit=quit_requested)
+    return Intents(
+        directions=frozenset(directions),
+        quit=quit_requested,
+        restart=restart_requested,
+    )

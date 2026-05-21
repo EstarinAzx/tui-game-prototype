@@ -5,7 +5,7 @@
 # Data shapes:
 #   - Pickup: frozen (cell, karma) record — one collected item, returned by tick().
 #   - GameState: mutable game state — player cell, items dict, score, sanity,
-#     run_over flag.
+#     elapsed run time, and run_over / end_reason ("time" | "sanity").
 #
 # This module imports nothing about the terminal (no blessed, screen, keyboard,
 # clock, or files). Time and randomness are injected, so identical inputs always
@@ -41,8 +41,12 @@ class GameState:
         self.score = 0
         # The run's lifeline: drains every second, swings on every pickup.
         self.sanity = config.sanity_start
-        # Flips True the tick sanity hits the floor; the shell watches this.
+        # Seconds of run time accumulated so far; the timer counts against this.
+        self.elapsed = 0.0
+        # Flips True the tick the run ends; the shell watches this.
         self.run_over = False
+        # Why the run ended: "time" (clock hit 0) or "sanity" (hit the floor).
+        self.end_reason = None
 
     # Make a brand-new game with the player centered and the floor stocked.
     @classmethod
@@ -51,6 +55,13 @@ class GameState:
         state = cls(config=config, player=center, rng=rng)
         state._refill_items()
         return state
+
+    # ------------------ time_remaining — seconds left on the clock -------- #
+
+    # Seconds left in the run, floored at 0 — the HUD countdown reads this.
+    @property
+    def time_remaining(self):
+        return max(0.0, self._config.run_seconds - self.elapsed)
 
     # ----------------- _roll_karma — flip one item's hidden coin ---------- #
 
@@ -94,7 +105,13 @@ class GameState:
     # intents is the set of held directions; dt is seconds since the last tick.
     # Returns the Pickup events from this frame.
     def tick(self, intents, dt):
-        # Passive decay scaled by dt — this is the run's real clock.
+        # Once the run is over, freeze everything — a late tick changes nothing,
+        # so the game-over screen shows the score and clock at the end moment.
+        if self.run_over:
+            return []
+        # dt is the run's real clock — accumulate it toward run_seconds.
+        self.elapsed += dt
+        # Passive decay scaled by dt.
         self.sanity -= self._config.sanity_decay_per_second * dt
         self._clamp_sanity()
         held = set(intents)
@@ -118,8 +135,12 @@ class GameState:
             self._clamp_sanity()
             events.append(Pickup(cell=self.player, karma=karma))
             self._refill_items()
-        # Sanity bottoming out ends the run — decay or a bad pickup can trip it
-        # in the same tick it happens.
+        # End the run: sanity loss takes priority over the clock when both
+        # trip in the same tick — losing beats running out the timer.
         if self.sanity <= self._config.sanity_min:
             self.run_over = True
+            self.end_reason = "sanity"
+        elif self.elapsed >= self._config.run_seconds:
+            self.run_over = True
+            self.end_reason = "time"
         return events

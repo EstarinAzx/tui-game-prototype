@@ -8,56 +8,61 @@ tags: [context, active-work]
 # Active Work
 
 _Last updated: 2026-05-21 by Opus 4.7 (auto)_
-_At commit: Slice 3 (this session — see git log for hash)_
+_At commit: Slice 4 (this session — see git log for hash)_
 
 ## Current focus
 
-KARMA RUSH **Slice 3 is built** — sanity decay, per-item karma, a color-coded
-sanity bar, a pickup flash, and instant death at sanity 0, all with the
-`blessed`-free core under `pytest`. The next agent builds **Slice 4** (timer,
-game-over screen, restart loop).
+KARMA RUSH **Slice 4 is built** — a 60-second countdown, a `TIME UP` /
+`SANITY LOST` end reason, a game-over screen, and an `R` restart / `Q`-`Esc`
+quit loop, all with the `blessed`-free core under `pytest`. The next agent
+builds **Slice 5** (title screen + 3-2-1 countdown, formal state machine) and
+can build **Slice 6** (persistent high score) in parallel — both unblocked.
 
 ## State
 
-- **In flight:** Nothing — Slice 3 is complete and committed.
-- **Done this session:** Built Slice 3 via `/tdd` (cycles 14–24). Core
-  (`core.py`): `GameState` gained `sanity` (starts `config.sanity_start`) and
-  a `run_over` flag; `tick` applies passive decay (`sanity_decay_per_second *
-  dt`), a `_clamp_sanity` helper pins `[sanity_min, sanity_max]`. **`items`
-  reshaped from a set of cells to a `dict {cell: karma}`** — each item's
-  karma is rolled 50/50 at spawn by `_roll_karma`. Pickup applies the karma
-  swing (clamped) and sets `run_over` when sanity ≤ 0. `Pickup` gained a
-  `karma` field. Shell: `render.py` draws a color-coded sanity bar and a
-  pickup flash; `app.py` consumes `tick`'s `Pickup` events for the flash and
-  returns from `run()` on `run_over`. 49 core tests, all green.
+- **In flight:** Nothing — Slice 4 is complete and committed.
+- **Done this session:** Built Slice 4 via `/tdd` (cycles 25–31). Core
+  (`core.py`): `GameState` gained `elapsed` (accumulates `dt` in `tick`) and
+  `end_reason` (`"time"` | `"sanity"`, `None` mid-run). `tick` now **no-ops
+  once `run_over`** — returns `[]` and mutates nothing, so score/sanity/clock
+  freeze at the end moment. End conditions: `elapsed >= run_seconds` →
+  `"time"`; `sanity <= sanity_min` → `"sanity"`, **sanity checked first** so a
+  tick that trips both ends as `"sanity"`. New `time_remaining` property
+  (`max(0, run_seconds - elapsed)`). Shell: `render.py` HUD widened to 3 rows
+  (`HUD_ROWS = 3`) with a `TIME` countdown row (`math.ceil` of
+  `time_remaining`); new **`screens.py`** with `render_game_over`; `input.py`
+  `Intents` gained a `restart` flag (`R` key); `app.py` restructured into
+  `run` (restart cycle) → `_play_run` (one run, returns finished state or
+  `None` on quit) → `_game_over` (waits for `R`/`Q`). 56 core tests, all green.
 - **Blocked:** Nothing.
 
 ## Pick up here
 
-1. Start **Slice 4** in `ISSUES.md` (blocked by #3, now unblocked).
-2. Extend the core (`karma_rush/core.py`):
-   - Track elapsed run time: accumulate `dt` in `tick` (e.g. `self.elapsed`).
-     End the run when `elapsed >= config.run_seconds` (60s).
-   - **`run_over` is a bool today** — Slice 4 needs the *reason*. Add an
-     end-reason field (`"time"` vs `"sanity"`) so the game-over screen can
-     show `TIME UP` / `SANITY LOST`. Set it wherever `run_over` flips.
-   - Decide whether `tick` should no-op once `run_over` is set — there is no
-     guard today; `app.py` simply stops calling it. A test for "score
-     freezes on death" may tick past the end and need that guard.
-3. Write `tests/test_core.py` coverage (red-green): time-up fires at
-   `elapsed >= 60s`, end reason is correct for each path, score frozen at
-   death.
-4. Shell: a 60s countdown in the HUD (`render.py` — HUD has 2 rows today,
-   both used; the timer needs space — widen `HUD_ROWS` or share a row), a
-   game-over screen showing reason + final score, and `app.py` state for
-   game-over + `R` restart / `Q`-`Esc` quit. There is **no `screens.py`**
-   yet though `overview.md` lists one — create it or fold into `app.py`.
-5. Run `python -m pytest` — keep it green.
+Two slices are now unblocked and independent — do either order, or both.
+
+**Slice 5 — Title screen and countdown** (`ISSUES.md`):
+1. Add a title screen + a 3-2-1 countdown to `screens.py` (it already holds
+   `render_game_over`; `END_REASON_TEXT` lives there too).
+2. Formalize the app state machine in `app.py`: TITLE → COUNTDOWN → PLAYING →
+   GAMEOVER, with `R` looping GAMEOVER → COUNTDOWN. `config.countdown_seconds`
+   (3.0) already exists for the countdown length.
+3. `app.py` is currently `run` / `_play_run` / `_game_over` — the state
+   machine likely replaces or wraps these.
+
+**Slice 6 — Persistent high score** (`ISSUES.md`, parallel with #5):
+1. There is **no `highscore.py`** yet — create it. `config.highscore_path`
+   (`"highscore.json"`) is already defined.
+2. Load best score at launch (missing file → 0), save when beaten, show it in
+   the HUD (`render.py`) and on the game-over screen (`screens.py`).
+3. `/tdd` it — `ISSUES.md` Slice 6 wants `pytest` on the store (missing-file
+   reads 0, save/load round-trips, a lower score does not overwrite).
+
+After either: run `python -m pytest` — keep it green.
 
 ## Skills for next session
 
-- `/tdd` — Slice 4 ships `pytest` core coverage (timer, end reason); fits
-  red-green-refactor.
+- `/tdd` — Slice 6's high-score store fits red-green-refactor cleanly (pure,
+  testable). Slice 5 is mostly shell (state machine + screens), less TDD-shaped.
 
 ## Open questions
 
@@ -65,20 +70,20 @@ None.
 
 ## Recent context
 
-- **`items` is now `dict {cell: karma}`** (was a set of cells in Slice 2).
-  `render.py` iterates `for ix, iy in state.items` — dict iteration yields
-  keys, so that line was unchanged. `test_core.py` stages items as dicts
-  (`{(6,5): 12.0}`); cycles 10–13 were updated to the new shape.
-- **`Pickup.karma`** carries the *nominal* swing (`±12`), not the clamped
-  applied delta — the flash shows `+12`/`-12` regardless of clamping.
-- **Death:** `tick` sets `run_over` when `sanity <= sanity_min`. `app.py`
-  draws the final frame then `return`s from `run()` — there is no game-over
-  screen yet (that is Slice 4).
-- **Karma-isolation tests** pass `dt=0` so passive decay does not blur the
-  `±12` swing under test; decay tests use a real `dt`.
+- **`tick` no-op guard:** the very first thing `tick` does is
+  `if self.run_over: return []`. Any new caller (Slice 5's state machine) can
+  safely tick a finished state — it changes nothing.
+- **`end_reason` priority:** sanity-loss is checked before the clock, so the
+  game-over screen reads `SANITY LOST` whenever sanity hit 0, even on the tick
+  the timer also expired. `screens.END_REASON_TEXT` maps the flag to the label.
+- **HUD is 3 rows now** (`HUD_ROWS = 3`): row 0 score + flash, row 1 `TIME`,
+  row 2 sanity bar. `required_terminal_size` grew by one row (now 62 × 25 for
+  the Standard preset) — the min-size check picks this up automatically.
+- **`screens.py` exists** — `overview.md` always listed it; Slice 4 created it
+  with `render_game_over`. Slice 5's title/countdown screens belong there too.
 - Could not run `python main.py` here (no interactive TTY) — verified by the
-  49-test `pytest` suite plus a render smoke test (UTF-8 forced, non-TTY
-  `blessed.Terminal`) that drew the sanity bar and both flash colors.
+  56-test `pytest` suite plus a non-TTY render/screens smoke test (3-row HUD
+  shows `TIME`, both game-over reasons render, required size is 62 × 25).
 
 ## Related
 

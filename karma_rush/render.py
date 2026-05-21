@@ -3,12 +3,15 @@
 #   - blessed: the terminal object (term) passed in — supplies colors, cursor
 #     moves, and screen size. This module never imports blessed itself.
 #   - karma_rush.core.GameState: the state read (never mutated) to draw a frame.
+#   - math (stdlib): rounds the HUD countdown up to whole seconds.
 #
 # Data shapes:
 #   - No types of its own; module-level constants hold the box glyphs and the
 #     HUD / sanity-bar layout sizes.
 #
 # Drawing only — never changes the game; the core owns the rules.
+
+import math
 
 
 # ----------------------- Box glyphs and layout sizes ---------------------- #
@@ -33,9 +36,9 @@ SANITY_BAR_WIDTH = 20
 SANITY_BAR_FILLED = "█"
 SANITY_BAR_EMPTY = "░"
 
-# Rows kept clear under the arena for the HUD (score line + sanity bar). Counts
-# toward the minimum terminal size so the layout never jumps later.
-HUD_ROWS = 2
+# Rows kept clear under the arena for the HUD (score, countdown, sanity bar).
+# Counts toward the minimum terminal size so the layout never jumps later.
+HUD_ROWS = 3
 
 
 # ----------------- Terminal-size checks and resize prompt ----------------- #
@@ -81,8 +84,8 @@ def _sanity_color(term, sanity, config):
 
 
 # Draw one frame: bordered arena, item glyphs, player block, and the HUD
-# (score + optional pickup flash, color-coded sanity bar). The whole frame is
-# redrawn every tick, so old positions paint over and no trail is left.
+# (score + optional pickup flash, countdown, color-coded sanity bar). The whole
+# frame is redrawn every tick, so old positions paint over and no trail is left.
 # flash, when given, is a (text, is_good) pair — None for no flash.
 def render_frame(term, state, config, flash=None):
     width = config.arena_width
@@ -129,7 +132,12 @@ def render_frame(term, state, config, flash=None):
     pad0 = " " * max(0, width - term.length(row0))
     out.append(term.move_xy(origin_x, origin_y + box_h) + row0 + pad0)
 
-    # HUD row 1: the sanity bar, filled in proportion to sanity and colored by
+    # HUD row 1: the countdown. Rounded up so it only reads 0 at the true end.
+    row_time = f"TIME {math.ceil(state.time_remaining):2d}"
+    pad_time = " " * max(0, width - term.length(row_time))
+    out.append(term.move_xy(origin_x, origin_y + box_h + 1) + row_time + pad_time)
+
+    # HUD row 2: the sanity bar, filled in proportion to sanity and colored by
     # danger level, followed by the rounded sanity number.
     fraction = max(0.0, min(1.0, state.sanity / config.sanity_max))
     filled = round(fraction * SANITY_BAR_WIDTH)
@@ -137,7 +145,7 @@ def render_frame(term, state, config, flash=None):
     color = _sanity_color(term, state.sanity, config)
     row1 = f"SANITY {color(bar)} {round(state.sanity):3d}"
     pad1 = " " * max(0, width - term.length(row1))
-    out.append(term.move_xy(origin_x, origin_y + box_h + 1) + row1 + pad1)
+    out.append(term.move_xy(origin_x, origin_y + box_h + 2) + row1 + pad1)
 
     # Send the whole frame to the terminal in a single write.
     print("".join(out), end="", flush=True)

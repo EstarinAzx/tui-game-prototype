@@ -6,9 +6,10 @@
 #   - karma_rush.core.GameState: the game rules and state this loop advances.
 #   - karma_rush.input: reads the keyboard into Intents.
 #   - karma_rush.render: draws each frame and the resize prompt.
+#   - karma_rush.screens: draws the game-over screen between runs.
 #
-# Owns the game loop (read keys -> advance -> draw) but holds no game rules —
-# those all live in the core.
+# Owns the game loop (read keys -> advance -> draw) and the run/game-over/
+# restart cycle, but holds no game rules — those all live in the core.
 
 import time
 import random
@@ -16,13 +17,31 @@ import random
 from karma_rush.core import GameState
 from karma_rush import input as game_input
 from karma_rush import render
+from karma_rush import screens
 
 
-# ------------------------- run — the main game loop ----------------------- #
+# ------------------------- run — the run/restart cycle -------------------- #
 
-# Run the game loop until the player quits or the run ends. term is the blessed
-# terminal (already in raw mode); config is the settings bundle.
+# Run games until the player quits: play a run, show its game-over screen, and
+# either start a fresh run (R) or return (Q/Esc). term is the blessed terminal
+# (already in raw mode); config is the settings bundle.
 def run(term, config):
+    while True:
+        # _play_run returns the finished state, or None if the player quit
+        # mid-run — a mid-run quit leaves the cycle entirely.
+        state = _play_run(term, config)
+        if state is None:
+            return
+        # The run ended on its own — game-over screen; False (Q/Esc) quits.
+        if not _game_over(term, config, state):
+            return
+
+
+# ----------------------- _play_run — one full run ------------------------- #
+
+# Play one run start to finish. Returns the finished GameState when the run
+# ends (clock or sanity), or None if the player quit mid-run.
+def _play_run(term, config):
     state = GameState.new(random.Random(), config)
 
     # One frame's budget. 20 ticks/sec -> 0.05s each.
@@ -47,7 +66,7 @@ def run(term, config):
             was_too_small = True
             intents = game_input.read_intents(term)
             if intents.quit:
-                return
+                return None
             time.sleep(frame_seconds)
             continue
 
@@ -63,7 +82,7 @@ def run(term, config):
 
         intents = game_input.read_intents(term)
         if intents.quit:
-            return
+            return None
 
         # Advance one tick; tick reports any items collected this frame.
         events = state.tick(intents.directions, dt)
@@ -83,12 +102,31 @@ def run(term, config):
 
         render.render_frame(term, state, config, flash)
 
-        # Sanity at zero ends the run — the final frame is already drawn above.
+        # The run ended (clock or sanity) — the final frame is drawn above;
+        # hand the frozen state back for the game-over screen.
         if state.run_over:
-            return
+            return state
 
         # Pace the loop: sleep off whatever is left in the frame budget.
         elapsed = time.monotonic() - frame_start
         leftover = frame_seconds - elapsed
         if leftover > 0:
             time.sleep(leftover)
+
+
+# ---------------------- _game_over — the end-of-run wait ------------------ #
+
+# Show the game-over screen and wait for the player's choice. Returns True to
+# play again (R) or False to quit (Q/Esc). state is the finished GameState.
+def _game_over(term, config, state):
+    screens.render_game_over(term, state)
+    frame_seconds = 1.0 / config.tick_hz
+
+    while True:
+        intents = game_input.read_intents(term)
+        if intents.quit:
+            return False
+        if intents.restart:
+            return True
+        # Idle at the frame rate so the wait does not spin the CPU.
+        time.sleep(frame_seconds)
