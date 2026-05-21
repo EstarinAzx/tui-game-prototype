@@ -19,6 +19,8 @@ _Status: **Complete — all 7 slices built.** Scaffold, arena, movable player, i
 - `tests/` — `pytest` suite for the `blessed`-free core.
 - `requirements.txt` — pins `blessed`.
 - `README.md` — install, run, and play instructions.
+- `CONTEXT.md` — the domain glossary (owns the project's ubiquitous language).
+- `docs/adr/` — architecture decision records (0001–0003).
 - `PRD.md` — the full build spec.
 - `ISSUES.md` — the work, broken into 7 tracer-bullet vertical slices.
 
@@ -30,20 +32,24 @@ _Status: **Complete — all 7 slices built.** Scaffold, arena, movable player, i
 
 ## Where to look first
 
+- **Domain language:** `CONTEXT.md` — the glossary; use its terms in code and docs.
+- **Architecture:** `docs/adr/` — 0001 core/shell split, 0002 `blessed`, 0003 items-dict.
 - **Build spec:** `PRD.md` (problem, solution, modules, mechanics, tests).
 - **Work breakdown:** `ISSUES.md` — all 7 slices done.
 - **Settled design:** [[decisions]] — 19 grilled decisions, the architecture call, and the Slice 7 balance tune. Do not re-litigate.
+- **Code layout:** [[code-map]] — where each piece of logic lives.
 - **Handoff state:** [[active-work]] — current focus and where to pick up.
 - **Built:** All 7 slices (`karma_rush/`, `main.py`, `tests/`, `README.md`). The game is feature-complete.
 
 ## Conventions
 
-- The game **core is `blessed`-free** — all rules live behind `GameState.tick(intents, dt)` so they unit-test without a TTY. Keep terminal code out of it.
+- The game **core is `blessed`-free** — all rules live behind `GameState.tick(directions, dt)` so they unit-test without a TTY. Keep terminal code out of it.
 - The core is **`dt`-driven** (no real clock) and **RNG-injected** (no global `random`) so runs are deterministic under test.
 - All tuning constants live in **one config module** — rebalance there, never inline.
 
 ## Map
 
 - [[stack]] — language, libraries, how it runs
+- [[code-map]] — where each piece of logic lives
 - [[active-work]] — current handoff state
 - [[decisions]] — the settled design decisions

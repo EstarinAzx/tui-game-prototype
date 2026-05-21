@@ -154,3 +154,21 @@ forward: any new phase loop must call `_wait_for_resize`, and any `dt`-driven
 loop must reset `last_time` after any pause so paused time is never dumped into
 a `dt`.
 **Reversibility:** easy — localized to `app.py`.
+
+---
+
+## 2026-05-21 — Domain glossary + ADRs; code aligned to glossary terms
+
+**Decision:** A `/grill-with-docs` session made `CONTEXT.md` the owner of the
+project's ubiquitous language (13 terms; 7 overloads resolved) and promoted
+three load-bearing decisions to `docs/adr/` — `0001` core/shell split, `0002`
+`blessed` over curses/textual, `0003` items as a `{cell: karma}` dict. Code
+identifiers were renamed to the settled terms (commit `ca172bc`): `tick_hz` →
+`frame_hz`, `best` → `high_score` family, `app.run` → `run_session`, core
+`tick(intents)` → `tick(directions)`, "app state machine" → "phase machine".
+**Why:** Terms were overloaded across docs and code — one name per concept,
+enforced in code, stops drift. ADRs give the architectural decisions a permanent
+home independent of this rolling `.context/`; D1, D16, D20 and the items-dict
+entry above are the source rationale.
+**Reversibility:** easy — the renames are mechanical and the 71 tests stay
+green; the ADR'd decisions are as reversible as their subjects (see each ADR).
