@@ -10,7 +10,7 @@ tags: [context, overview]
 **Project:** KARMA RUSH
 **One-liner:** A 60-second top-down TUI arcade game — hoard mysterious items, each a hidden 50/50 karma gamble that swings your sanity; survive the minute and chase the high score.
 
-_Status: **Slice 5 built.** Scaffold, arena, movable player, items (spawn, walk-over collect, score), sanity (decay, per-item karma, color-coded bar, pickup flash, death at 0), the 60s run loop (`TIME UP` / `SANITY LOST` end, game-over screen, `R` restart), and the front end — title screen, 3-2-1 countdown, and a formal app state machine (TITLE → COUNTDOWN → PLAYING → GAMEOVER) — all exist with a tested `blessed`-free core. Next: Slice 6 (high score), then Slice 7 (playtest + balance, HITL) — see [[active-work]]._
+_Status: **Slice 6 built.** Scaffold, arena, movable player, items (spawn, walk-over collect, score), sanity (decay, per-item karma, color-coded bar, pickup flash, death at 0), the 60s run loop (`TIME UP` / `SANITY LOST` end, game-over screen, `R` restart), the front end — title screen, 3-2-1 countdown, and a formal app state machine (TITLE → COUNTDOWN → PLAYING → GAMEOVER) — and a persistent high score (`BEST` in the HUD and on game-over) all exist with a tested `blessed`-free core. Next and last: Slice 7 (playtest + balance, HITL) — see [[active-work]]._
 
 ## Layout
 
@@ -33,7 +33,7 @@ _Status: **Slice 5 built.** Scaffold, arena, movable player, items (spawn, walk-
 - **Work breakdown:** `ISSUES.md` — start at Slice 1.
 - **Settled design:** [[decisions]] — 19 grilled decisions plus the architecture call. Do not re-litigate.
 - **Handoff state:** [[active-work]] — current focus and where to pick up.
-- **Built so far:** Slices 1–5 (`karma_rush/`, `main.py`, `tests/`). Next is Slice 6, then Slice 7.
+- **Built so far:** Slices 1–6 (`karma_rush/`, `main.py`, `tests/`). Next and last is Slice 7.
 
 ## Conventions
 

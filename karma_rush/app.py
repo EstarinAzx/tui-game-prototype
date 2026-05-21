@@ -8,6 +8,7 @@
 #   - karma_rush.input: reads the keyboard into Intents.
 #   - karma_rush.render: draws each frame and the resize prompt.
 #   - karma_rush.screens: draws the title, countdown, and game-over screens.
+#   - karma_rush.highscore: loads and saves the persistent best score.
 #
 # Owns the app state machine — TITLE -> COUNTDOWN -> PLAYING -> GAMEOVER, with
 # R looping GAMEOVER -> COUNTDOWN — and the per-phase loops, but holds no game
@@ -21,6 +22,7 @@ from karma_rush.countdown import Countdown
 from karma_rush import input as game_input
 from karma_rush import render
 from karma_rush import screens
+from karma_rush import highscore
 
 
 # ------------------------- The app state machine ------------------------- #
@@ -59,6 +61,10 @@ def run(term, config):
     phase = TITLE
     # The finished GameState, carried from PLAYING into GAMEOVER.
     state = None
+    # Best score persists across runs: loaded once at launch, re-saved each
+    # time a run beats it. is_new_best flags that for the game-over screen.
+    best = highscore.load_high_score(config.highscore_path)
+    is_new_best = False
 
     while phase is not None:
         if phase == TITLE:
@@ -66,11 +72,21 @@ def run(term, config):
         elif phase == COUNTDOWN:
             outcome = _countdown(term, config)
         elif phase == PLAYING:
-            state = _play_run(term, config)
+            state = _play_run(term, config, best)
             # _play_run returns None on a mid-run quit, else the finished run.
             outcome = "quit" if state is None else "ended"
+            # A finished run may beat the stored best — persist it if so.
+            if state is not None:
+                is_new_best = state.score > best
+                best = highscore.save_high_score(
+                    config.highscore_path, state.score
+                )
         else:  # GAMEOVER
-            outcome = "restart" if _game_over(term, config, state) else "quit"
+            outcome = (
+                "restart"
+                if _game_over(term, config, state, best, is_new_best)
+                else "quit"
+            )
 
         phase = next_phase(phase, outcome)
 
@@ -126,8 +142,9 @@ def _countdown(term, config):
 # ----------------------- _play_run — one full run ------------------------- #
 
 # Play one run start to finish. Returns the finished GameState when the run
-# ends (clock or sanity), or None if the player quit mid-run.
-def _play_run(term, config):
+# ends (clock or sanity), or None if the player quit mid-run. best is the
+# score to beat, shown in the HUD.
+def _play_run(term, config, best):
     state = GameState.new(random.Random(), config)
 
     # One frame's budget. 20 ticks/sec -> 0.05s each.
@@ -186,7 +203,7 @@ def _play_run(term, config):
             flash = (f"{int(karma):+d}", karma > 0)
             flash_remaining = config.pickup_flash_seconds
 
-        render.render_frame(term, state, config, flash)
+        render.render_frame(term, state, config, flash, best)
 
         # The run ended (clock or sanity) — the final frame is drawn above;
         # hand the frozen state back for the game-over screen.
@@ -203,9 +220,10 @@ def _play_run(term, config):
 # ---------------------- _game_over — the end-of-run wait ------------------ #
 
 # Show the game-over screen and wait for the player's choice. Returns True to
-# play again (R) or False to quit (Q/Esc). state is the finished GameState.
-def _game_over(term, config, state):
-    screens.render_game_over(term, state)
+# play again (R) or False to quit (Q/Esc). state is the finished GameState;
+# best is the stored high score, is_new_best true when this run set it.
+def _game_over(term, config, state, best, is_new_best):
+    screens.render_game_over(term, state, best, is_new_best)
     frame_seconds = 1.0 / config.tick_hz
 
     while True:

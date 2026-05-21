@@ -71,18 +71,27 @@ def render_countdown(term, number):
 
 # ---------------------------- Game-over screen ---------------------------- #
 
-# Draw the game-over screen: why the run ended, the final (frozen) score, and
-# the keys to play again or quit. state is the finished GameState.
-def render_game_over(term, state):
+# Draw the game-over screen: why the run ended, the final (frozen) score, the
+# persistent best, and the keys to play again or quit. state is the finished
+# GameState; best is the stored high score, is_new_best true when this run
+# just set it.
+def render_game_over(term, state, best=0, is_new_best=False):
     headline = END_REASON_TEXT.get(state.end_reason, "GAME OVER")
     # Red headline for a sanity loss, yellow for a clean time-out.
     headline_color = term.red if state.end_reason == "sanity" else term.yellow
+
+    # A new best gets a green call-out; otherwise show the score to beat.
+    if is_new_best:
+        best_line = ("NEW HIGH SCORE!", term.green)
+    else:
+        best_line = (f"BEST {best}", term.dim)
 
     lines = [
         ("GAME OVER", term.bold),
         (headline, headline_color),
         ("", None),
         (f"FINAL SCORE {state.score}", term.bold),
+        best_line,
         ("", None),
         ("[R] play again     [Q] quit", term.dim),
     ]

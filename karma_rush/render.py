@@ -84,10 +84,11 @@ def _sanity_color(term, sanity, config):
 
 
 # Draw one frame: bordered arena, item glyphs, player block, and the HUD
-# (score + optional pickup flash, countdown, color-coded sanity bar). The whole
-# frame is redrawn every tick, so old positions paint over and no trail is left.
-# flash, when given, is a (text, is_good) pair — None for no flash.
-def render_frame(term, state, config, flash=None):
+# (score + best + optional pickup flash, countdown, color-coded sanity bar).
+# The whole frame is redrawn every tick, so old positions paint over and no
+# trail is left. flash, when given, is a (text, is_good) pair — None for no
+# flash. best is the persistent high score shown beside the live score.
+def render_frame(term, state, config, flash=None, best=0):
     width = config.arena_width
     height = config.arena_height
     box_w = width + 2
@@ -122,8 +123,9 @@ def render_frame(term, state, config, flash=None):
     bottom = BOTTOM_LEFT + HORIZONTAL * width + BOTTOM_RIGHT
     out.append(term.move_xy(origin_x, origin_y + box_h - 1) + term.dim(bottom))
 
-    # HUD row 0: the score, with an optional pickup flash beside it.
-    row0 = f"SCORE {state.score}"
+    # HUD row 0: live score and persistent best, with an optional pickup flash.
+    # BEST sits at a fixed spot; the flash trails it so it never shifts BEST.
+    row0 = f"SCORE {state.score}   BEST {best}"
     if flash is not None:
         flash_text, flash_good = flash
         flash_color = term.green if flash_good else term.red
