@@ -41,6 +41,27 @@ main.py → app.py (phase machine)
 | [input.py](../karma_rush/input.py) | [`read_intents`](../karma_rush/input.py#L32) drains the keyboard into one `Intents` bundle. |
 | [highscore.py](../karma_rush/highscore.py) | High-score JSON store — [`load_high_score`](../karma_rush/highscore.py#L23) / [`save_high_score`](../karma_rush/highscore.py#L35) (atomic `.tmp` + `os.replace`). |
 
+## Glossary term → code
+
+Where each [[CONTEXT]] term is represented. Most are concepts, not one symbol.
+
+| Term | Lives as |
+|---|---|
+| Run | [`_play_run`](../karma_rush/app.py#L174) drives one; [`GameState`](../karma_rush/core.py#L32) holds its state; `run_seconds` / `run_over` |
+| Session | [`run_session`](../karma_rush/app.py#L60) — the whole phase loop |
+| Phase | `TITLE`/`COUNTDOWN`/`PLAYING`/`GAMEOVER` consts + [`next_phase`](../karma_rush/app.py#L49) |
+| Tick | [`GameState.tick`](../karma_rush/core.py#L114), [`Countdown.tick`](../karma_rush/countdown.py#L25) |
+| Frame | one [phase-loop iteration](../karma_rush/app.py#L187); `frame_hz` paces it |
+| Sanity | `GameState.sanity` + [`_clamp_sanity`](../karma_rush/core.py#L105) |
+| Karma | [`Pickup.karma`](../karma_rush/core.py#L22), `karma_good`/`karma_bad`, [`_roll_karma`](../karma_rush/core.py#L70) |
+| Item | `{cell: karma}` entries in `GameState.items` |
+| Pickup | [`Pickup`](../karma_rush/core.py#L22) record, returned by `tick` |
+| Score / High score | `GameState.score`; [`highscore.py`](../karma_rush/highscore.py) store |
+| Arena | drawn by [`render_frame`](../karma_rush/render.py#L91); sized by `arena_width` / `arena_height` |
+| Player | `GameState.player` cell |
+| Intents | [`Intents`](../karma_rush/input.py#L20) bundle from [`read_intents`](../karma_rush/input.py#L32) |
+| Screen | [`screens.py`](../karma_rush/screens.py) — title / countdown / game-over |
+
 ## Quick "where do I look for…?"
 
 | Question | Start at |
@@ -57,5 +78,6 @@ main.py → app.py (phase machine)
 ## Related
 
 - [[overview]]
+- [[CONTEXT]] — the domain glossary these terms are defined in
 - [[decisions]] — D20 / ADR-0001, the core/shell split
 - [[active-work]]
