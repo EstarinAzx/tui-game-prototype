@@ -112,7 +112,7 @@ def render_frame(term, state, config, flash=None, best=0):
                 cells[ix] = term.yellow(ITEM_GLYPH)
         # Player drawn last so it sits on top of anything else.
         if row == py:
-            cells[px] = term.cyan(PLAYER_GLYPH)
+            cells[px] = term.white(PLAYER_GLYPH)
         out.append(
             term.move_xy(origin_x, origin_y + 1 + row)
             + term.dim(VERTICAL)
