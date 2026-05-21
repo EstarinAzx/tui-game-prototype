@@ -92,3 +92,45 @@ The game splits into a pure **core engine** and a thin **terminal shell**. The c
 **Decision:** Once `GameState.run_over` is set, `tick()` returns `[]` immediately and mutates nothing — score, sanity, `elapsed`, and player all freeze. When a single tick both drains sanity to 0 and runs the clock out, `end_reason` is `"sanity"` (sanity is checked before the clock). `end_reason` is `"time"` | `"sanity"`, `None` while the run is live.
 **Why:** The game-over screen must show the score frozen at the end moment — without the guard a late tick from the shell (or Slice 5's state machine) would keep mutating a finished run. `active-work.md` had flagged "should `tick` no-op once over?" as open; this closes it. Sanity-first priority so a death reads as `SANITY LOST`, not `TIME UP`.
 **Reversibility:** easy — both behaviors are localized to `tick()`.
+
+---
+
+## 2026-05-21 — Slice 7: final balance constants (supersedes D19)
+
+**Decision:** The Slice 7 HITL playtest replaces the D19 "Standard" starting
+values. Final tuned constants in `karma_rush/config.py`:
+
+| Constant | D19 start | Final | 
+|---|---|---|
+| `sanity_decay_per_second` | 1.5 | **2.0** |
+| `arena_width` | 60 | **80** |
+| `arena_height` | 20 | **24** |
+| `item_cap` | 6 | **9** |
+| `karma_good` / `karma_bad` | `+12` / `−12` | unchanged |
+| `run_seconds` | 60 | unchanged |
+
+**Why:** The playtest found the D19 preset **trivially survivable** and the
+arena **too small**.
+- *Decay 1.5 → 2.0:* at 1.5/s a 60s run drains only 90 of 100 sanity, so
+  idling — collecting nothing, taking zero karma risk — wins. At 2.0/s a full
+  run drains 120, so doing nothing kills you ~50s in. Collecting items (the
+  50/50 gamble of D5/D6) is now forced, not optional. This restores D7's
+  intent — sanity is something you must *maintain against*.
+- *Arena 60×20 → 80×24:* play area felt cramped; `80×24` is ~60% more cells.
+- *`item_cap` 6 → 9:* the bigger arena would otherwise scatter 6 items too
+  thinly (1200→1920 cells). 9 holds item density ≈ constant (~210 cells/item),
+  so the bigger arena is not also a punishing-sparse one.
+- *Karma `±12` kept:* not flagged in playtest; the EV-0 coin-flip is the core
+  gamble (D6) and changing it is out of scope.
+
+**Cost:** the larger arena raises the required terminal from 62×25 to **82×29**
+(`render.required_terminal_size` = `arena + border + 3 HUD rows`).
+
+**Test impact:** `test_run_ends_with_time_reason_when_clock_runs_out` was
+coupled to the old soft decay (it ticked a full 60s assuming sanity survived).
+Rewritten to run with `sanity_decay_per_second=0.0` so it tests the timer-end
+path independent of the balance preset. 71 tests green.
+
+**Reversibility:** trivial — all values are constants in `config.py`. A
+re-playtest at 2.0 decay is recommended to confirm runs now feel tense rather
+than swinging to unfairly punishing.

@@ -309,9 +309,11 @@ def test_tick_accumulates_elapsed_by_dt():
 
 # Cycle 27 — the run ends with reason "time" once elapsed reaches run_seconds.
 def test_run_ends_with_time_reason_when_clock_runs_out():
-    state = make_state()
-    # One tick advancing the clock the full run length; sanity stays positive.
-    state.tick(set(), dt=Config().run_seconds)
+    # - Decay off so the clock, not sanity, is what ends this run — keeps the
+    #   test pinned to the timer path regardless of the balance preset's decay.
+    cfg = Config(sanity_decay_per_second=0.0)
+    state = GameState.new(random.Random(0), cfg)
+    state.tick(set(), dt=cfg.run_seconds)
     assert state.run_over is True
     assert state.end_reason == "time"
     assert state.sanity > 0

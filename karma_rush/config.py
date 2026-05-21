@@ -29,12 +29,13 @@ class Config:
 
     # --- The arena ---
     # The size of the play area INSIDE the walls, measured in cells.
-    arena_width: int = 60
-    arena_height: int = 20
+    arena_width: int = 80
+    arena_height: int = 24
 
     # --- Items ---
     # How many items the floor is kept stocked with at all times.
-    item_cap: int = 6
+    # - Scaled with arena area to hold item density ~constant.
+    item_cap: int = 9
 
     # --- Sanity ---
     # Sanity is a number between these two limits; the player starts at the top.
@@ -42,7 +43,8 @@ class Config:
     sanity_max: float = 100.0
     sanity_start: float = 100.0
     # How much sanity drains away on its own, every second.
-    sanity_decay_per_second: float = 1.5
+    # - 2.0 (not 1.5): idling alone must lose, so collecting items is forced.
+    sanity_decay_per_second: float = 2.0
     # How much a good item adds, and how much a bad item takes away.
     karma_good: float = 12.0
     karma_bad: float = -12.0
