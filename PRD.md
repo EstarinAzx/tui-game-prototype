@@ -4,6 +4,12 @@
 
 _Status: spec ready for build · Created 2026-05-20 · Source: `/grill-me` session (19 design decisions)_
 
+> **Update 2026-05-21:** the balance constants below (arena size, item cap,
+> decay rate, minimum terminal size) are the original pre-playtest "Standard"
+> preset. The Slice 7 playtest superseded them — final values are arena 80×24,
+> item cap 9, decay 2.0/s, minimum terminal 82×29. See `.context/decisions.md`.
+> This spec body is kept unchanged for historical accuracy.
+
 ## Problem Statement
 
 A player wants a quick, self-contained game that runs in a plain terminal — no GUI, no install ceremony, no long session. They want a tight loop they can finish in one minute, a simple but real decision to make every few seconds, and a score that makes "one more run" tempting. Nothing like this exists yet; it must be built from scratch.
