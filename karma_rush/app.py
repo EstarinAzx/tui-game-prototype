@@ -91,6 +91,21 @@ def run(term, config):
         phase = next_phase(phase, outcome)
 
 
+# ------------------ _wait_for_resize — block on a small window ----------- #
+
+# Show the resize prompt and block until the window is big enough — or the
+# player quits. Returns True on quit, False once the terminal fits. Every
+# phase routes through this so a too-small window never shows a broken screen.
+def _wait_for_resize(term, config):
+    frame_seconds = 1.0 / config.tick_hz
+    while render.is_terminal_too_small(term, config):
+        render.render_resize_prompt(term, config)
+        if game_input.read_intents(term).quit:
+            return True
+        time.sleep(frame_seconds)
+    return False
+
+
 # ------------------------- _title — the title screen --------------------- #
 
 # Show the title screen and wait. Returns "start" on any key, "quit" on Q/Esc.
@@ -99,6 +114,11 @@ def _title(term, config):
     frame_seconds = 1.0 / config.tick_hz
 
     while True:
+        # Too-small window: show the resize prompt, then repaint the title.
+        if render.is_terminal_too_small(term, config):
+            if _wait_for_resize(term, config):
+                return "quit"
+            screens.render_title(term)
         intents = game_input.read_intents(term)
         # Q/Esc checked before any_key so quitting beats starting on that key.
         if intents.quit:
@@ -119,6 +139,13 @@ def _countdown(term, config):
     last_time = time.monotonic()
 
     while True:
+        # Too-small window: pause the countdown on the resize prompt, then
+        # reset the frame clock so paused seconds are not counted against it.
+        if render.is_terminal_too_small(term, config):
+            if _wait_for_resize(term, config):
+                return "quit"
+            last_time = time.monotonic()
+
         frame_start = time.monotonic()
         dt = frame_start - last_time
         last_time = frame_start
@@ -152,33 +179,23 @@ def _play_run(term, config, best):
 
     last_time = time.monotonic()
 
-    # Tracks the resize-message state so the screen is wiped once on return —
-    # the arena is NOT cleared every frame, which would flicker.
-    was_too_small = False
-
     # Pickup flash: transient "+12 / -12" feedback. flash is a (text, is_good)
     # pair or None; flash_remaining counts down its seconds on screen.
     flash = None
     flash_remaining = 0.0
 
     while True:
-        # Case 1: window too small — show the resize prompt instead of a
-        # broken arena. The player can still quit.
+        # Too-small window: pause on the resize prompt instead of a broken
+        # arena. Wipe its leftover text and reset the frame clock after — the
+        # paused time must NOT land in the next dt, which would decay sanity
+        # and burn the timer for seconds the run never actually played.
         if render.is_terminal_too_small(term, config):
-            render.render_resize_prompt(term, config)
-            was_too_small = True
-            intents = game_input.read_intents(term)
-            if intents.quit:
+            if _wait_for_resize(term, config):
                 return None
-            time.sleep(frame_seconds)
-            continue
-
-        # Coming back from the resize message — wipe its leftover text once.
-        if was_too_small:
             print(term.home + term.clear, end="", flush=True)
-            was_too_small = False
+            last_time = time.monotonic()
 
-        # Case 2: a normal frame. Measure dt — real seconds since last frame.
+        # A normal frame. Measure dt — real seconds since last frame.
         frame_start = time.monotonic()
         dt = frame_start - last_time
         last_time = frame_start
@@ -227,6 +244,11 @@ def _game_over(term, config, state, best, is_new_best):
     frame_seconds = 1.0 / config.tick_hz
 
     while True:
+        # Too-small window: show the resize prompt, then repaint the screen.
+        if render.is_terminal_too_small(term, config):
+            if _wait_for_resize(term, config):
+                return False
+            screens.render_game_over(term, state, best, is_new_best)
         intents = game_input.read_intents(term)
         if intents.quit:
             return False

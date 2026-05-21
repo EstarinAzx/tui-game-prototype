@@ -79,17 +79,24 @@ class GameState:
     # floor holds item_cap.
     def _refill_items(self):
         cfg = self._config
-        while len(self.items) < cfg.item_cap:
-            empty = [
-                (x, y)
-                for x in range(cfg.arena_width)
-                for y in range(cfg.arena_height)
-                if (x, y) != self.player and (x, y) not in self.items
-            ]
+        need = cfg.item_cap - len(self.items)
+        if need <= 0:
+            return
+        # Build the free-cell list once, not once per spawn — chosen cells are
+        # dropped from it as we go. Same cells in the same order as the old
+        # per-spawn rebuild, so a seeded RNG still picks an identical run.
+        empty = [
+            (x, y)
+            for x in range(cfg.arena_width)
+            for y in range(cfg.arena_height)
+            if (x, y) != self.player and (x, y) not in self.items
+        ]
+        for _ in range(need):
             # No room left — stop rather than loop forever.
             if not empty:
                 return
             cell = self._rng.choice(empty)
+            empty.remove(cell)
             self.items[cell] = self._roll_karma()
 
     # ---------------- _clamp_sanity — pin sanity to its range ------------- #

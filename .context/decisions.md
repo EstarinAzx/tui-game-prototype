@@ -134,3 +134,23 @@ path independent of the balance preset. 71 tests green.
 **Reversibility:** trivial — all values are constants in `config.py`. A
 re-playtest at 2.0 decay is recommended to confirm runs now feel tense rather
 than swinging to unfairly punishing.
+
+---
+
+## 2026-05-21 — Resize handling: every phase guards size; clocks reset after a pause
+
+**Decision:** A `/reviewer` audit fixed two resize defects in `app.py`.
+(1) `_play_run` reset `last_time` only on a normal frame, so time spent on the
+resize prompt leaked into the next `dt` — the first post-resize tick decayed
+sanity and burned the timer for seconds the run never played, sometimes ending
+it instantly. (2) Only the PLAYING phase checked terminal size at all. Both are
+fixed with a shared helper `app._wait_for_resize`, which blocks on the resize
+prompt until the window fits (or the player quits). Every phase loop — title,
+countdown, playing, game-over — now calls it, and every `dt`-driven phase
+(`_countdown`, `_play_run`) resets its frame clock immediately after it returns.
+**Why:** The resize prompt is a PRD requirement (story 27), but recovering from
+it corrupted the run, and three of four phases never showed it. Rule going
+forward: any new phase loop must call `_wait_for_resize`, and any `dt`-driven
+loop must reset `last_time` after any pause so paused time is never dumped into
+a `dt`.
+**Reversibility:** easy — localized to `app.py`.

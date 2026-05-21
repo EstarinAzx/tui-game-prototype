@@ -36,6 +36,10 @@ def save_high_score(path, score):
     best = load_high_score(path)
     if score <= best:
         return best
-    with open(path, "w", encoding="utf-8") as f:
+    # Write to a temp file, then atomically swap it in: a crash mid-write
+    # leaves the old file intact instead of a truncated one load reads as 0.
+    tmp_path = path + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump({_SCORE_KEY: score}, f)
+    os.replace(tmp_path, path)
     return score

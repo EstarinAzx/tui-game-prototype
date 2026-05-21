@@ -8,48 +8,57 @@ tags: [context, active-work]
 # Active Work
 
 _Last updated: 2026-05-21 by Opus 4.7 (auto)_
-_At commit: Slice 7 (this session — see git log for hash)_
+_At commit: post-review fix pass (this session — see git log for hash)_
 
 ## Current focus
 
-KARMA RUSH **Slice 7 is built — the project is complete.** All 7 tracer-bullet
-slices are done. Slice 7 was the HITL playtest + balance pass: a human played
-runs, reported the Standard preset as trivially survivable and the arena as too
-small; the balance constants were tuned, a README written, and the final
-constants recorded in [[decisions]].
+KARMA RUSH **is feature-complete and has now had a review pass.** A `/reviewer`
+audit of the finished codebase found 1 blocker + 1 important + 2 nits; all four
+were fixed this session. 71 tests still green.
 
 ## State
 
-- **In flight:** Nothing — Slice 7 is complete.
-- **Done this session:** HITL playtest of Slice 7. Human feedback: runs
-  *trivially survivable*, arena *too small*. Tuned `config.py`:
-  `sanity_decay_per_second` 1.5 → **2.0** (idle now dies ~50s in, so
-  collecting items is forced), `arena_width` 60 → **80**, `arena_height`
-  20 → **24**, `item_cap` 6 → **9** (holds item density ≈ constant in the
-  bigger arena). Karma `±12` and `run_seconds` 60 unchanged. Wrote **README.md**
-  (install / run / play / controls / develop). Recorded final constants in
-  `decisions.md` (entry supersedes D19). Fixed
-  `test_run_ends_with_time_reason_when_clock_runs_out` — it was coupled to the
-  old soft decay; rewritten to run with `sanity_decay_per_second=0.0` so it
-  tests the timer path independent of the preset. **71 tests, all green.**
+- **In flight:** Nothing.
+- **Done this session:** `/reviewer` audit of the whole codebase, then fixes:
+  - **Blocker — `app._play_run` resize `dt` leak.** `last_time` was reset only
+    on normal frames, so time on the resize prompt (the too-small `continue`
+    path) leaked into the next `dt`. The first frame after a resize got a giant
+    `dt` → mass sanity decay + timer burn; a long resize could end the run
+    instantly. Fixed.
+  - **Important — only PLAYING guarded terminal size.** Title, countdown, and
+    game-over drew unconditionally — a small window showed a garbled screen,
+    not the resize prompt (PRD story 27). Now all four phases guard size.
+  - Both fixed via a new shared helper `app._wait_for_resize` (blocks on the
+    prompt until the window fits or the player quits); `dt`-driven phases reset
+    their frame clock after it returns. See [[decisions]].
+  - **Nit — `highscore.save_high_score`** now writes a `.tmp` file then
+    `os.replace`s it: a crash mid-write keeps the old file instead of a
+    truncated one `load` reads back as score 0.
+  - **Nit — `core._refill_items`** builds the free-cell list once instead of
+    rebuilding it per spawn. Verified RNG-identical (same cells, same order at
+    each `choice`) — seeded runs are unchanged.
+  - Player-color commit `a1072d4` (cyan → white) was reviewed and **kept** —
+    deliberate, documented in its commit message.
 - **Blocked:** Nothing.
 
 ## Pick up here
 
-**No active work — the game is feature-complete.** All PRD slices shipped.
+**No active work — the game is feature-complete and reviewed.**
 
-Optional follow-up if desired:
-- **Re-playtest at the new balance.** Decay 2.0 / arena 80×24 / item_cap 9
-  are an informed tune, but a human has not felt the *new* values. Run
-  `python main.py` (needs a real TTY ≥ 82×29) and confirm runs feel tense, not
-  unfairly punishing. Re-tune `config.py` only if needed; update [[decisions]].
+Optional follow-ups, in priority order:
+- **Manual resize check.** The shell loop is untested by PRD design (D17).
+  Launch `python main.py` in a terminal smaller than 82×29, resize it mid-run,
+  and confirm the run resumes with a fresh clock — full sanity, 60s — not a
+  corrupted one. This is exactly the path the blocker fix touched.
+- **Re-playtest at the current balance.** Decay 2.0 / arena 80×24 / item_cap 9
+  is an informed tune but has not been felt by a human at the *new* values.
 - Anything else is a new feature beyond the PRD.
 
 After any change: run `python -m pytest` — keep it green.
 
 ## Skills for next session
 
-- None required. A re-playtest is hand-tuning, not a `/tdd` slice.
+- None required. Both follow-ups are hand-testing, not a `/tdd` slice.
 
 ## Open questions
 
@@ -57,20 +66,13 @@ None.
 
 ## Recent context
 
-- **Decay 2.0 is the load-bearing fix.** At 1.5/s a 60s run drained only 90 of
-  100 sanity — idling (zero karma risk) won the game. At 2.0/s a full run
-  drains 120, so doing nothing kills you; the 50/50 item gamble is now forced.
-- **`item_cap` was bumped *because* the arena grew**, not as a separate balance
-  call — 6 items in the 80×24 arena would be too sparse. 9 keeps ~210
-  cells/item, close to the original density.
-- **The bigger arena raises the terminal floor to 82×29** (was 62×25) —
-  `render.required_terminal_size` = arena + border + 3 HUD rows. Smaller
-  windows get the resize prompt.
-- **One test was balance-coupled and broke on the decay change** — it assumed a
-  full idle run survives. Fixed by pinning that test to decay 0; it tests the
-  timer path, not the preset.
-- Could not run `python main.py` here (no interactive TTY); the human ran the
-  playtest. AFK verification was the 71-test `pytest` suite.
+- **Resize handling is now uniform.** Every phase loop routes a too-small
+  window through `_wait_for_resize`; any new phase must do the same, and any
+  `dt`-driven loop must reset `last_time` after a pause. See [[decisions]].
+- **Balance is decay 2.0 / arena 80×24 / item_cap 9** (Slice 7 tune). The
+  required terminal is 82×29. A human has not re-felt the new values.
+- Could not run `python main.py` here (no interactive TTY); AFK verification
+  was the 71-test `pytest` suite.
 
 ## Related
 
