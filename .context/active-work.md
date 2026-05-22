@@ -8,63 +8,65 @@ tags: [context, active-work]
 # Active Work
 
 _Last updated: 2026-05-23 by Opus 4.7 (auto)_
-_At commit: uncommitted — Slice 2 (#3) complete, about to commit_
+_At commit: 0ea4f23 — Slice 3 (#4) committed_
 
 ## Current focus
 
-KARMA RUSH **maze expansion**, Slice 2 of 4. Bonus time is built: a good-Karma
-Pickup may roll a chance to also grant extra Run seconds, extending the Run past
-its nominal length with no cap. 86 tests green.
+KARMA RUSH **maze expansion**. Slice 3 — the Hunter (GitHub #4) — is built,
+tested, and committed. A playtest of the shipped Hunter rejected its omniscient
+chase, so a follow-up issue **#6 (Slice 3b: Smart Hunter)** redesigns the
+targeting model. 101 tests green.
 
 ## State
 
-- **In flight:** Nothing — Slice 2 done, uncommitted (about to commit).
-- **Done this session:** Built GitHub issue #3 (Slice 2) via `/tdd`, 5
-  red-green cycles:
-  - `config.py` — added `bonus_time_chance` (0.25) and `bonus_time_amount`
-    (5.0). Starting values; slice #5 tunes.
-  - `core.py` — `Pickup` gained a `bonus_seconds` field; `GameState` gained a
-    `bonus_time_total` accumulator and a `_roll_bonus` roll; `tick` rolls bonus
-    on a good-Karma Pickup only; new `_run_length` property
-    (`run_seconds + bonus_time_total`) backs both `time_remaining` and the
-    `"time"` end-check.
-  - `render.py` / `app.py` — a cyan Bonus-time HUD flash (e.g. `+5s`) trails
-    the karma flash, sharing its fade countdown.
-  - `tests/test_core.py` — `make_state` gained a `bonus_time_chance` param
-    (default 0.0); 5 new bonus-time tests. 81 → 86 green.
+- **In flight:** Nothing — Slice 3 committed at `0ea4f23`.
+- **Done this session:** Built GitHub issue #4 (Slice 3, the Hunter) via
+  `/tdd`, 14 red-green cycles:
+  - `maze.py` — BFS `path_step` (next hop on a shortest Floor path).
+  - `hunter.py` — new pure-core module: `Hunter` holds a cell + dt accumulator,
+    steps at 75% player speed via the BFS first hop.
+  - `config.py` — `hunter_speed_factor` (0.75).
+  - `core.py` — `GameState` owns one Hunter, spawned at the BFS-farthest Floor
+    cell; `tick` advances it; caught (shared cell or head-on swap) ends the run
+    with `end_reason "caught"`; end priority sanity → caught → time.
+  - `render.py` / `screens.py` — red `◆` Hunter glyph, CAUGHT headline, title
+    mentions the Hunter.
+  - `advance()` caps dt catch-up at two steps — a dt-spike robustness fix.
+  - Cycle 27 rewritten to drop Hunter coupling — the only existing test changed.
 - **Blocked:** Nothing.
 
 ## Pick up here
 
-**Build the remaining maze-expansion slices.** Read each with
-`gh issue view <n> --repo EstarinAzx/tui-game-prototype`:
-- **#4** — Hunter (AI predator, BFS chase, CAUGHT end). The PRD folds BFS
-  pathfinding into `maze.py` — it has no path helper yet, build it. New
-  `hunter.py` pure-core module.
-- **#5** — HITL balance playtest (last; tunes the shipped constants, including
-  the new `bonus_time_chance` / `bonus_time_amount`).
+**Build issue #6 — Slice 3b: Smart Hunter.** Read it with
+`gh issue view 6 --repo EstarinAzx/tui-game-prototype`. It replaces the
+Hunter's omniscient targeting with line of sight + last-known-position memory +
+random-corridor wander, and lowers `hunter_speed_factor` to 0.5. Pure-core,
+TDD-able. After #6, **#5 (Slice 4: Balance playtest)** remains — #5 tunes the
+final Hunter, so #6 must land first.
 
-Run `python -m pytest` first — expect **86 green**.
+Run `python -m pytest` first — expect **101 green**.
 
 ## Skills for next session
 
-- /tdd — #4 ships tested pure-core logic (Hunter + BFS); red-green-refactor fits.
+- /tdd — #6 is tested pure-core logic (LOS, memory, wander); red-green-refactor.
 
 ## Open questions
 
-None.
+None — #6's design calls (wander when no target, speed 0.5, unlimited LOS
+range) are settled in the issue body.
 
 ## Recent context
 
-- The Bonus-time roll fires only on good Karma (`karma > 0`) — bad Karma never
-  consumes the RNG. Tests force it on with `bonus_time_chance=1.0`, off with
-  `0.0`, so they are deterministic without seed fiddling.
-- `make_state` defaults `bonus_time_chance=0.0` so every pre-bonus core test
-  stays deterministic — the same isolation trick as Cycle 27's `decay=0.0`.
-- The HUD timer already rendered values > 60 (`run_seconds` is 180); the
-  Bonus-time flash was the only real render change.
-- `item_cap` 9 and the new bonus constants are all unplayed — flag for the #5
-  playtest.
+- Issue #4 specified an *omniscient* Hunter ("BFS to the player's current
+  cell", "active from t=0"). It was built to spec and committed; the playtest
+  then judged omniscience unfair. #6 is the agreed redesign — #4's commit is
+  kept as the tested BFS-pathing / catch / spawn foundation #6 extends.
+- A perceived "freeze at GET READY 2" during the playtest is **not** a Slice 3
+  regression — Slice 3 touches no countdown code, and `tick` benchmarks at
+  ~1.5 ms. Most likely Windows console QuickEdit Mode (a click pauses output).
+- Benchmarks (122×45 default config): `GameState.new` 8.6 ms, `path_step`
+  ~2 ms, `tick` ~1.5 ms. A 60 s dt-spike once cost 366 ms in `advance()`; the
+  two-step cap cut it to 3.4 ms.
 
 ## Related
 

@@ -260,3 +260,32 @@ as Cycle 27's `sanity_decay_per_second=0.0`. Bonus tests force the roll with
 chance 1.0 / 0.0, needing no seed control.
 **Reversibility:** easy — `bonus_time_chance` / `bonus_time_amount` are constants
 in `config.py`, retuned by slice #5; the rest is additive.
+
+---
+
+## 2026-05-23 — Slice 3 (#4): Hunter shipped omniscient, then redesigned — smart Hunter is #6
+
+**Decision:** Slice 3 built issue #4's Hunter exactly as specced — an omniscient
+BFS chaser that targets the player's *current* cell every step and is active
+from t=0 (committed `0ea4f23`, 101 tests green). A playtest judged the
+omniscience unfair: there is no way to break the chase. The targeting model is
+being redesigned in a new issue **#6 (Slice 3b: Smart Hunter)** — line of sight
++ last-known-position memory + random-corridor wander when it has no target,
+and `hunter_speed_factor` 0.75 → 0.5. Separately, `Hunter.advance` caps its
+banked dt at two steps (`min(budget + dt, 2 * step_seconds)`).
+
+**Why:** This supersedes the targeting half of the 2026-05-23 maze-expansion
+design pass ("BFS shortest-path chase ... active from t=0"). #4's omniscient
+Hunter is kept committed, not reverted: its BFS `path_step`, BFS-farthest spawn,
+catch detection (shared cell / head-on swap), and end-priority (sanity → caught
+→ time) are all unchanged by #6 — #6 only gates *targeting* with LOS + memory.
+Shipping #4 first keeps a clean tested slice boundary and a foundation #6
+extends. The `advance` dt-cap exists because a dt spike (OS suspend, window
+drag, console QuickEdit pause) otherwise dumps its whole duration into one `dt`
+and runs a `path_step` BFS per backlogged cell — a measured 60 s spike cost
+366 ms; the cap cut it to 3.4 ms. A chaser gains nothing from teleporting to
+make up lost time, so dropping the backlog is correct.
+
+**Reversibility:** medium — #6 changes how the Hunter picks its target; the
+pathing, spawn, and catch machinery underneath is stable. The dt-cap is one
+line, trivially reversible.

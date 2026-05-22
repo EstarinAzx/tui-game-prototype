@@ -10,12 +10,12 @@ tags: [context, overview]
 **Project:** KARMA RUSH
 **One-liner:** A 60-second top-down TUI arcade game — hoard mysterious items, each a hidden 50/50 karma gamble that swings your sanity; survive the minute and chase the high score.
 
-_Status: **v1 complete (all 7 slices); v2 maze expansion in progress — Slice 2 of 4 built (86 tests green).** v1: scaffold, arena, movable player, items (spawn, walk-over collect, score), sanity (decay, per-item karma, color-coded bar, pickup flash, death at 0), the 60s run loop (`TIME UP` / `SANITY LOST` end, game-over screen, `R` restart), the front end — title screen, 3-2-1 countdown, and a formal phase machine (TITLE → COUNTDOWN → PLAYING → GAMEOVER) — and a persistent high score, all on a tested `blessed`-free core. **v2 — the maze expansion** (procedural braided maze, Hunter enemy AI, bonus time) is specced as PRD GitHub issue #1 and broken into build slices #2–#5; **Slices 1–2 (#2 braided Maze, #3 Bonus time) are built** — slices #4–#5 remain. See [[active-work]]._
+_Status: **v1 complete (all 7 slices); v2 maze expansion in progress — Slice 3 of 4 built (101 tests green).** v1: scaffold, arena, movable player, items (spawn, walk-over collect, score), sanity (decay, per-item karma, color-coded bar, pickup flash, death at 0), the 60s run loop (`TIME UP` / `SANITY LOST` end, game-over screen, `R` restart), the front end — title screen, 3-2-1 countdown, and a formal phase machine (TITLE → COUNTDOWN → PLAYING → GAMEOVER) — and a persistent high score, all on a tested `blessed`-free core. **v2 — the maze expansion** (procedural braided maze, Hunter enemy AI, bonus time) is specced as PRD GitHub issue #1 and broken into build slices #2–#5; **Slices 1–3 (#2 Maze, #3 Bonus time, #4 the Hunter) are built**. A playtest rejected the Hunter's omniscient targeting, so follow-up issue #6 redesigns it (smart Hunter — line of sight + memory); then slice #5 playtest remains. See [[active-work]]._
 
 ## Layout
 
 - `main.py` — entry point; sets up/tears down raw terminal mode, launches the app loop.
-- `karma_rush/` — the game package: config, core engine, maze generator, countdown timer, rendering, input, screens, high-score store, app/orchestration.
+- `karma_rush/` — the game package: config, core engine, maze generator, Hunter AI, countdown timer, rendering, input, screens, high-score store, app/orchestration.
 - `tests/` — `pytest` suite for the `blessed`-free core.
 - `requirements.txt` — pins `blessed`.
 - `README.md` — install, run, and play instructions.
@@ -33,12 +33,12 @@ _Status: **v1 complete (all 7 slices); v2 maze expansion in progress — Slice 2
 
 - **Domain language:** `CONTEXT.md` — the glossary; use its terms in code and docs.
 - **Architecture:** `docs/adr/` — 0001 core/shell split, 0002 `blessed`, 0003 items-dict, 0004 braided maze.
-- **v2 build spec:** PRD GitHub issue #1; build slices = issues #2–#5.
+- **v2 build spec:** PRD GitHub issue #1; build slices = issues #2–#5, plus #6 (smart Hunter — redesigns #4's targeting).
 - **v1 spec (archived):** `docs/old spec/PRD.md` + `ISSUES.md` — all 7 v1 slices done.
 - **Settled design:** [[decisions]] — the v1 grill (19 decisions + architecture + Slice 7 tune) and the v2 maze-expansion design pass. Do not re-litigate.
 - **Code layout:** [[code-map]] — where each piece of logic lives.
 - **Handoff state:** [[active-work]] — current focus and where to pick up.
-- **Built:** v1 (all 7 slices) + v2 Slices 1–2 — the braided Maze (`karma_rush/maze.py`, 81×25 arena, Wall-blocked movement, Floor-only spawn) and Bonus time (good-Karma Pickup may grant uncapped extra Run seconds). v2 slices #4–#5 remain.
+- **Built:** v1 (all 7 slices) + v2 Slices 1–3 — the braided Maze (`karma_rush/maze.py`, Wall-blocked movement, Floor-only spawn), Bonus time (good-Karma Pickup may grant uncapped extra Run seconds), and the Hunter (`karma_rush/hunter.py` — a BFS-chasing predator, CAUGHT end). Follow-up issue #6 (smart Hunter — line of sight + memory) and slice #5 (playtest) remain.
 
 ## Conventions
 
