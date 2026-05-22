@@ -32,10 +32,16 @@ issue #1 (PRD) and four build slices (#2–#5). No code written yet.
 
 ## Pick up here
 
-**Start GitHub issue #2 — "Slice 1: The Maze".** Read issue #2 and
-parent #1 (the PRD) for full context. Build the braided-maze module +
-81×25 arena + wall-blocked movement + floor-only item spawn + wall
-render. #3 and #4 can then run in parallel; #5 (HITL playtest) is last.
+**Start GitHub issue #2 — "Slice 1: The Maze".** The full spec lives in
+GitHub issues, not in this repo — read them with
+`gh issue view <n> --comments` (repo `EstarinAzx/tui-game-prototype`):
+- **#1** — the PRD (parent: problem, solution, 29 user stories, modules).
+- **#2** — Slice 1, what to build now.
+- #3 Bonus time, #4 Hunter, #5 balance playtest — the remaining slices.
+
+Build #2: the braided-maze module + 81×25 arena + wall-blocked movement
++ floor-only item spawn + wall render. #3 and #4 can then run in
+parallel; #5 (HITL playtest) is last.
 
 Run `python -m pytest` first to confirm the suite is green (71 tests)
 before building.
