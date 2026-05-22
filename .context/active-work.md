@@ -1,73 +1,67 @@
 ---
 type: active-work
 project: karma-rush
-updated: 2026-05-21
+updated: 2026-05-23
 tags: [context, active-work]
 ---
 
 # Active Work
 
-_Last updated: 2026-05-21 18:40 by Opus 4.7 (auto)_
-_At commit: 74921db (grill-with-docs + PRD note); this context-update commits on top._
+_Last updated: 2026-05-23 by Opus 4.7 (auto)_
+_At commit: 99a8c20 (+ uncommitted doc changes — see Open questions)_
 
 ## Current focus
 
-KARMA RUSH is **feature-complete, reviewed, and now documented.** A
-`/grill-with-docs` session this session built the domain glossary, promoted the
-load-bearing decisions to ADRs, and renamed code identifiers to match. No code
-work is outstanding.
+KARMA RUSH **maze expansion** is fully planned and ticketed. A grill →
+PRD → issues pass this session turned three new features — a procedural
+maze, a Hunter enemy AI, and bonus time from good karma — into GitHub
+issue #1 (PRD) and four build slices (#2–#5). No code written yet.
 
 ## State
 
-- **In flight:** Nothing.
+- **In flight:** Nothing — planning complete, build not started.
 - **Done this session:**
-  - `/grill-with-docs` — resolved 7 overloaded terms, created `CONTEXT.md`
-    (13-term glossary) and `docs/adr/0001-0003`.
-  - Renamed code to the settled terms across 6 files: `tick_hz`→`frame_hz`,
-    `best`→`high_score` family, `app.run`→`run_session`, core
-    `tick(intents)`→`tick(directions)`, "app state machine"→"phase machine".
-    Committed `ca172bc`. 71 tests green.
-  - Added a Slice-7 supersession note to `PRD.md` (stale balance numbers).
-    Committed `74921db`.
-  - Eyeball test: the user ran `python main.py` and screenshotted a live run —
-    render correct (9 items, white player, HUD, letterboxed arena); live sanity
-    decay matched the math (87 shown vs 88 predicted at 6s elapsed).
-  - AFK balance math pass — no defect found, `config.py` left untouched.
-  - Added `.context/code-map.md`.
+  - `/grill-with-docs` — resolved 12 design decisions. Updated
+    `CONTEXT.md` (5 new terms: Maze, Wall, Floor, Hunter, Bonus time;
+    Arena/Player/Item/Pickup/Run/Karma redefined). Wrote
+    `docs/adr/0004-braided-maze.md` (supersedes D3).
+  - `/to-prd` — PRD submitted as GitHub issue #1.
+  - `/to-issues` — 4 tracer-bullet slices: #2 Maze, #3 Bonus time,
+    #4 Hunter, #5 balance playtest (HITL).
 - **Blocked:** Nothing.
 
 ## Pick up here
 
-**No active work — pick a new task.**
+**Start GitHub issue #2 — "Slice 1: The Maze".** Read issue #2 and
+parent #1 for full context. Build the braided-maze module + 81×25
+arena + wall-blocked movement + floor-only item spawn + wall render.
+#3 and #4 can then run in parallel; #5 (HITL playtest) is last.
 
-Two optional playtests remain, both needing a human at a live terminal:
-- **Resize check.** The eyeball test ran in a large terminal — it did *not*
-  exercise resize. Launch `python main.py`, shrink the window below 82×29
-  mid-run, confirm the resize prompt shows and the run resumes with a fresh
-  clock (full sanity, 60s), not a corrupted one.
-- **Full-run feel.** One screenshot can't show "tense vs unfairly punishing".
-  Play a full 60s (or a death) at decay 2.0 / arena 80×24 / item_cap 9. If it
-  feels unfair, say what felt wrong and `config.py` can be tuned to it.
-
-After any `config.py` change: run `python -m pytest` — keep it green.
+First, settle the pending doc commits (see Open questions). The
+uncommitted docs are `blessed`-free — run `python -m pytest` to confirm
+the suite is still green (71 tests) before building.
 
 ## Skills for next session
 
-- None required. Both follow-ups are hand-testing, not a coding slice.
+- /tdd — slices #2–#4 each ship a tested pure-core module; red-green-refactor fits.
 
 ## Open questions
 
-None.
+- Pending doc changes (CONTEXT.md edit, ADR-0004) are uncommitted —
+  commit standalone before the build, or fold into the Slice 1 commit?
+- `PRD.md` + `ISSUES.md` were moved to `docs/old spec/` (the v1 base-game
+  spec, superseded by PRD issue #1) — git shows them deleted + the new
+  dir untracked. Confirm the archive is intended, then commit it.
 
 ## Recent context
 
-- `CONTEXT.md` now owns the ubiquitous language — use its terms (Run, Session,
-  Tick, Frame, Phase, Screen, Intents, Karma, High score…) in code and docs.
-- `docs/adr/` is the durable home for architectural decisions; `.context/` is
-  rolling handoff only. ADR-0001 = core/shell split, 0002 = `blessed`, 0003 =
-  items-as-`{cell: karma}`-dict.
-- Balance is decay 2.0 / arena 80×24 / item_cap 9; required terminal 82×29. The
-  math is internally consistent and matches design intent — feel is unverified.
+- The expansion **replaces** the empty-arena game — no Classic mode.
+- Hunter: instant-death on contact (`end_reason "caught"`), ~75% player
+  speed, BFS pathing, spawns at the BFS-farthest floor cell, active t=0.
+- Bonus time: rolled at pickup on good karma only, extends the run past
+  60s uncapped; keeps the `{cell: karma}` item shape (ADR-0003).
+- Maze gen, Hunter, and BFS all stay in the pure core (ADR-0001).
+- Shipped balance constants are starting values — slice #5 tunes them.
 
 ## Related
 

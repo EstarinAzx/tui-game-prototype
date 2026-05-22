@@ -1,16 +1,17 @@
 # KARMA RUSH
 
-A 60-second top-down terminal arcade game: hoard mysterious items, each a hidden
-50/50 karma gamble that swings your sanity, and chase the high score. This is the
-domain glossary — every term means one thing here.
+A top-down terminal arcade maze game: thread a procedurally generated maze and
+hoard mysterious items — each a hidden 50/50 karma gamble that swings your sanity
+— while a Hunter stalks you through the corridors. Survive the clock and chase
+the high score. This is the domain glossary — every term means one thing here.
 
 ## Language
 
 ### Play units
 
 **Run**:
-One 60-second unit of play — sanity drains, score counts, ends on TIME UP or
-SANITY LOST.
+One unit of play — nominally 60 seconds, extendable by **Bonus time**. Sanity
+drains, score counts, ends on TIME UP, SANITY LOST, or CAUGHT.
 _Avoid_: game, round, match (for this concept).
 
 **Session**:
@@ -63,8 +64,15 @@ _Avoid_: health, HP, life.
 **Karma**:
 The hidden signed sanity swing an item carries, rolled 50/50 at spawn and
 revealed only on pickup. Positive is "good karma", negative is "bad karma" —
-the sign *is* the alignment; there is no separate "swing" concept.
+the sign *is* the alignment; there is no separate "swing" concept. Karma swings
+**Sanity** only — granting **Bonus time** is a separate effect.
 _Avoid_: luck, fate, alignment (as a separate term).
+
+**Bonus time**:
+Extra **Run** seconds granted by a chance roll that fires only on a good-**Karma**
+**Pickup**. Extends the Run past its nominal 60 seconds, uncapped. Distinct from
+Karma — Karma swings Sanity, Bonus time extends the clock.
+_Avoid_: extra time, time bonus, reprieve.
 
 **Score**:
 The current Run's item count — one point per item collected. Resets each Run.
@@ -80,24 +88,48 @@ _Avoid_: best (as a domain term), top score, record.
 
 **Arena**:
 The fixed bordered play area — a rectangle of cells with a drawn wall border,
-no interior obstacles. The **Player** and all **Items** live inside it.
+its interior filled by a **Maze**. The **Player**, the **Hunter**, and all
+**Items** live inside it.
 _Avoid_: board, grid, map, field.
 
+**Maze**:
+The wall layout filling the Arena interior — a *braided* maze (corridors loop,
+no dead ends), regenerated fresh for every **Run**. Made of **Wall** and
+**Floor** cells.
+_Avoid_: level, labyrinth, map.
+
+**Wall**:
+A blocked cell of the **Maze**. Neither the **Player** nor the **Hunter** can
+enter one; **Items** never spawn on one.
+_Avoid_: obstacle, block, barrier.
+
+**Floor**:
+An open, enterable cell of the **Maze** — the corridors. The **Player** and
+**Hunter** move only on Floor; **Items** spawn only on Floor.
+_Avoid_: path, corridor (as the term), passage, open cell.
+
 **Player**:
-The single square the human controls, moving one cell per axis per Tick,
-clamped inside the **Arena** walls.
+The single square the human controls, moving one **Floor** cell per axis per
+Tick — blocked by **Wall** cells and the **Arena** border.
 _Avoid_: character, avatar, square (as a term).
 
+**Hunter**:
+The single AI predator that hunts the **Player** — each Tick it steps toward the
+Player along the shortest open **Floor** path, moving slower than the Player.
+Sharing the Player's cell ends the **Run** instantly (CAUGHT).
+_Avoid_: enemy, monster, chaser, stalker, ghost.
+
 **Item**:
-A collectible on the **Arena** floor — an identical `?` glyph hiding a 50/50
-**Karma**. Has no class of its own; it is a `{cell: karma}` entry. The floor is
-kept stocked at a fixed cap.
+A collectible on a **Maze** **Floor** cell — an identical `?` glyph hiding a
+50/50 **Karma**. Has no class of its own; it is a `{cell: karma}` entry. The
+floor is kept stocked at a fixed cap.
 _Avoid_: pickup (for the thing on the floor), token, orb.
 
 **Pickup**:
 The event of the **Player** collecting one **Item** — the `Pickup` record
-`tick` returns. At most one Pickup per Tick. The "pickup flash" is the HUD
-reaction to it.
+`tick` returns, carrying the revealed **Karma** and any **Bonus time** it
+granted. At most one Pickup per Tick. The "pickup flash" is the HUD reaction
+to it.
 _Avoid_: collection, grab (as a term); item (for the event).
 
 ## Relationships
@@ -106,8 +138,13 @@ _Avoid_: collection, grab (as a term); item (for the event).
 - Each **Run** has one **Sanity** value and one **Score**
 - Each item carries one **Karma** value
 - A **Run**'s **Score** can beat the **High score**, replacing it
-- An **Arena** holds one **Player** and many **Items**
+- An **Arena** holds one **Maze**, one **Player**, one **Hunter**, and many
+  **Items**
+- A **Maze** is made of **Wall** and **Floor** cells; the **Player**, **Hunter**,
+  and **Items** occupy only **Floor**
 - A **Pickup** happens when the **Player** moves onto an **Item**'s cell
+- A good-**Karma** **Pickup** may grant **Bonus time**, extending the **Run**
+- The **Hunter** reaching the **Player** ends the **Run** (CAUGHT)
 - A **Session** is in exactly one **Phase** at a time
 - The TITLE, COUNTDOWN, and GAMEOVER **Phases** each draw a **Screen**; PLAYING
   draws the **Arena**
@@ -126,6 +163,15 @@ _Avoid_: collection, grab (as a term); item (for the event).
 > **Dev:** "The PLAYING Phase — what Screen does it draw?"
 > **Designer:** "None. PLAYING draws the Arena. Only TITLE, COUNTDOWN, and
 > GAMEOVER draw a Screen."
+>
+> **Dev:** "The Hunter touches the Player — that's like SANITY LOST?"
+> **Designer:** "Same kind of end, different reason. Sanity hitting 0 is SANITY
+> LOST; the Hunter sharing your cell is CAUGHT. Both end the Run instantly."
+>
+> **Dev:** "A good-karma Pickup gave `+12` and `+5s` — both Karma?"
+> **Designer:** "No. The `+12` is Karma — a Sanity swing. The `+5s` is Bonus
+> time — extra seconds on the clock. Bonus time only ever rides on a good-Karma
+> Pickup, and only sometimes."
 
 ## Flagged ambiguities
 
@@ -141,3 +187,7 @@ _Avoid_: collection, grab (as a term); item (for the event).
   **Screen** is the overlay; the list is a "lines block".
 - **"intents"** named both the input bundle and the bare directions set passed
   to the core — resolved: **Intents** is the bundle; the core takes `directions`.
+- **"karma" vs "bonus time"** — good karma now also grants time; resolved: Karma
+  swings **Sanity** only, **Bonus time** is its own term that extends the clock.
+- **Arena "no interior obstacles"** (decision D3) — superseded: the Arena
+  interior is now a **Maze** of **Wall** and **Floor** cells.

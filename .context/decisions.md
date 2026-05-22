@@ -1,7 +1,7 @@
 ---
 type: decisions
 project: karma-rush
-updated: 2026-05-21
+updated: 2026-05-23
 tags: [context, decisions]
 ---
 
@@ -172,3 +172,33 @@ home independent of this rolling `.context/`; D1, D16, D20 and the items-dict
 entry above are the source rationale.
 **Reversibility:** easy — the renames are mechanical and the 71 tests stay
 green; the ADR'd decisions are as reversible as their subjects (see each ADR).
+
+---
+
+## 2026-05-23 — KARMA RUSH maze expansion: design pass (12 decisions)
+
+**Decision:** A `/grill-with-docs` → `/to-prd` → `/to-issues` session specced
+an expansion that **replaces** the empty-arena game with a maze game. Three
+features: a procedurally generated braided maze, one Hunter enemy AI, and bonus
+time granted by good karma. Full spec is PRD GitHub issue #1; domain terms are
+in `CONTEXT.md`. Settled design:
+- *Maze:* braided (looping corridors, no dead ends), fresh per Run; arena bumped
+  to 81×25 odd, 1-cell corridors. See `docs/adr/0004-braided-maze.md`.
+- *Hunter:* instant-death on contact (`end_reason "caught"`), ~75% player speed,
+  BFS shortest-path chase, spawns at the BFS-farthest floor cell, active from
+  t=0. One Hunter; end-priority sanity → caught → time.
+- *Bonus time:* a separate roll on a good-karma Pickup only; extends the Run
+  past 60s, uncapped; `Pickup` gains a `bonus_seconds` field. Item shape stays
+  `{cell: karma}` — ADR-0003 preserved.
+- *Build:* 2 new pure-core modules (`maze` incl. BFS, `hunter`); 4 tracer-bullet
+  slices = GitHub issues #2–#5; #5 is an HITL balance playtest.
+
+**Why:** The empty arena was one-dimensional once the rhythm was learned.
+Braided (not perfect) maze so a slower chaser stays fair — escape loops, no
+dead-end death traps. Bonus time rolled at pickup, not pre-stored, to keep
+ADR-0003's item dict intact. Replace, not a mode, to avoid maintaining two code
+paths. All new logic stays in the pure core (ADR-0001) so it unit-tests.
+
+**Reversibility:** hard — supersedes D3 (empty arena); the braided topology, the
+Hunter, and the 81×25 arena are load-bearing across core/render/tests. The
+shipped balance constants (tuned in slice #5) are trivially reversible.
