@@ -23,16 +23,16 @@ class Config:
 
     # --- The run ---
     # How long one full game lasts, in seconds.
-    run_seconds: float = 60.0
+    run_seconds: float = 180.0
     # How long the 3-2-1 countdown lasts before the timer starts, in seconds.
     countdown_seconds: float = 3.0
 
     # --- The arena ---
     # The size of the play area INSIDE the walls, measured in cells.
-    # - Odd (81x25, not 80x24): standard maze generation lays rooms on even
-    #   coords, so odd dimensions land cleanly with 1-cell corridors.
-    arena_width: int = 81
-    arena_height: int = 25
+    # - Odd dimensions land cleanest: maze generation lays rooms on even
+    #   coords, so an even side leaves its last column/row unreachable Wall.
+    arena_width: int = 122
+    arena_height: int = 45
 
     # --- The maze ---
     # Probability each dead-end room gets a second passage carved (braiding).
@@ -42,7 +42,7 @@ class Config:
     # --- Items ---
     # How many items the floor is kept stocked with at all times.
     # - Scaled with arena area to hold item density ~constant.
-    item_cap: int = 9
+    item_cap: int = 25
 
     # --- Sanity ---
     # Sanity is a number between these two limits; the player starts at the top.
@@ -51,7 +51,7 @@ class Config:
     sanity_start: float = 100.0
     # How much sanity drains away on its own, every second.
     # - 2.0 (not 1.5): idling alone must lose, so collecting items is forced.
-    sanity_decay_per_second: float = 2.0
+    sanity_decay_per_second: float = 0.5
     # How much a good item adds, and how much a bad item takes away.
     karma_good: float = 12.0
     karma_bad: float = -12.0

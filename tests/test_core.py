@@ -309,9 +309,10 @@ def test_pickup_event_carries_the_karma_swing():
 def test_run_ends_when_sanity_reaches_zero():
     state = make_state()
     assert state.run_over is False
-    # One point above the floor, then a long decay tick tips it to zero.
+    # One point above the floor; a large decay tick drives sanity to zero
+    # regardless of the configured decay rate, and stays under the clock.
     state.sanity = 1.0
-    state.tick(set(), dt=1.0)
+    state.tick(set(), dt=100.0)
     assert state.sanity == 0.0
     assert state.run_over is True
 
@@ -358,8 +359,9 @@ def test_run_ends_with_time_reason_when_clock_runs_out():
 def test_run_ends_with_sanity_reason_when_sanity_hits_zero():
     state = make_state()
     state.sanity = 1.0
-    # A short tick: sanity tips to the floor well before the clock runs out.
-    state.tick(set(), dt=1.0)
+    # A large tick drains sanity to the floor, still well before the clock
+    # runs out — decoupled from the configured decay rate.
+    state.tick(set(), dt=100.0)
     assert state.run_over is True
     assert state.end_reason == "sanity"
 

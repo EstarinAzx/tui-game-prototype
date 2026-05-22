@@ -27,9 +27,28 @@ VERTICAL = "│"
 # The player glyph: a solid filled block.
 PLAYER_GLYPH = "█"
 
-# The wall glyph: a solid block, drawn dim so it reads as a backdrop the
-# player and items stand out against.
-WALL_GLYPH = "█"
+# Wall cells are drawn as thin box-drawing lines — the same light style as the
+# arena border — so corridors read clearly instead of a heavy block field. The
+# glyph for a Wall cell connects to whichever orthogonal neighbours are also
+# Wall. Key: (up, down, left, right) booleans; "·" is a lone, unconnected Wall.
+WALL_GLYPHS = {
+    (False, False, False, False): "·",
+    (False, False, False, True): "─",
+    (False, False, True, False): "─",
+    (False, False, True, True): "─",
+    (False, True, False, False): "│",
+    (False, True, False, True): "┌",
+    (False, True, True, False): "┐",
+    (False, True, True, True): "┬",
+    (True, False, False, False): "│",
+    (True, False, False, True): "└",
+    (True, False, True, False): "┘",
+    (True, False, True, True): "┴",
+    (True, True, False, False): "│",
+    (True, True, False, True): "├",
+    (True, True, True, False): "┤",
+    (True, True, True, True): "┼",
+}
 
 # The item glyph: a mysterious question mark (its karma is hidden).
 ITEM_GLYPH = "?"
@@ -78,6 +97,17 @@ def render_resize_prompt(term, config):
 
 # --------------------------- Frame rendering ------------------------------ #
 
+# Pick the box-drawing glyph for a Wall cell: connect to each in-bounds
+# orthogonal neighbour that is also a Wall. Out-of-bounds counts as not-Wall so
+# edge Walls do not draw lines into the arena border.
+def _wall_glyph(maze, x, y, width, height):
+    up = y > 0 and maze.is_wall((x, y - 1))
+    down = y < height - 1 and maze.is_wall((x, y + 1))
+    left = x > 0 and maze.is_wall((x - 1, y))
+    right = x < width - 1 and maze.is_wall((x + 1, y))
+    return WALL_GLYPHS[(up, down, left, right)]
+
+
 # Pick the HUD color for the current sanity: green high, yellow mid, red low.
 def _sanity_color(term, sanity, config):
     if sanity > config.sanity_green_above:
@@ -111,11 +141,12 @@ def render_frame(term, state, config, flash=None, high_score=0):
 
     for row in range(height):
         cells = [" "] * width
-        # Maze Wall cells, drawn dim. Items and the player live on Floor, so
-        # they paint over the blank Floor cells left here.
+        # Maze Wall cells, drawn dim as connected box-drawing lines. Items and
+        # the player live on Floor, so they paint over the blank Floor cells.
         for col in range(width):
             if state.maze.is_wall((col, row)):
-                cells[col] = term.dim(WALL_GLYPH)
+                glyph = _wall_glyph(state.maze, col, row, width, height)
+                cells[col] = term.dim(glyph)
         for ix, iy in state.items:
             if iy == row:
                 cells[ix] = term.yellow(ITEM_GLYPH)
