@@ -8,7 +8,7 @@ tags: [context, active-work]
 # Active Work
 
 _Last updated: 2026-05-23 by Opus 4.7 (auto)_
-_At commit: 99a8c20 (+ uncommitted doc changes — see Open questions)_
+_At commit: 4797b64 (planning docs committed — clean tree)_
 
 ## Current focus
 
@@ -33,13 +33,12 @@ issue #1 (PRD) and four build slices (#2–#5). No code written yet.
 ## Pick up here
 
 **Start GitHub issue #2 — "Slice 1: The Maze".** Read issue #2 and
-parent #1 for full context. Build the braided-maze module + 81×25
-arena + wall-blocked movement + floor-only item spawn + wall render.
-#3 and #4 can then run in parallel; #5 (HITL playtest) is last.
+parent #1 (the PRD) for full context. Build the braided-maze module +
+81×25 arena + wall-blocked movement + floor-only item spawn + wall
+render. #3 and #4 can then run in parallel; #5 (HITL playtest) is last.
 
-First, settle the pending doc commits (see Open questions). The
-uncommitted docs are `blessed`-free — run `python -m pytest` to confirm
-the suite is still green (71 tests) before building.
+Run `python -m pytest` first to confirm the suite is green (71 tests)
+before building.
 
 ## Skills for next session
 
@@ -47,11 +46,7 @@ the suite is still green (71 tests) before building.
 
 ## Open questions
 
-- Pending doc changes (CONTEXT.md edit, ADR-0004) are uncommitted —
-  commit standalone before the build, or fold into the Slice 1 commit?
-- `PRD.md` + `ISSUES.md` were moved to `docs/old spec/` (the v1 base-game
-  spec, superseded by PRD issue #1) — git shows them deleted + the new
-  dir untracked. Confirm the archive is intended, then commit it.
+None.
 
 ## Recent context
 
