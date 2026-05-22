@@ -1,17 +1,20 @@
 # ------------------ core.py — game rules and state (pure core) ------------ #
 # Depends on:
 #   - dataclasses (stdlib): frozen dataclass for the Pickup event.
+#   - karma_rush.maze.Maze: the Wall/Floor layout the run plays on.
 #
 # Data shapes:
 #   - Pickup: frozen (cell, karma) record — one collected item, returned by tick().
-#   - GameState: mutable game state — player cell, items dict, score, sanity,
-#     elapsed run time, and run_over / end_reason ("time" | "sanity").
+#   - GameState: mutable game state — maze, player cell, items dict, score,
+#     sanity, elapsed run time, and run_over / end_reason ("time" | "sanity").
 #
 # This module imports nothing about the terminal (no blessed, screen, keyboard,
 # clock, or files). Time and randomness are injected, so identical inputs always
 # produce an identical game — which is what makes the core testable.
 
 from dataclasses import dataclass
+
+from karma_rush.maze import Maze
 
 
 # ----------------------- Pickup — collected-item event -------------------- #
@@ -31,9 +34,11 @@ class Pickup:
 # The whole game in one object: where things are, plus tick() to advance a frame.
 class GameState:
     # Build a GameState from its pieces. Most code should use GameState.new().
-    def __init__(self, config, player, rng):
+    def __init__(self, config, player, rng, maze):
         self._config = config
         self._rng = rng
+        # The braided maze this run plays on: the Wall/Floor source of truth.
+        self.maze = maze
         # Player cell as (x, y): x is the column, y is the row.
         self.player = player
         # Floor items: maps each item's (x, y) cell to its hidden karma swing.
@@ -48,11 +53,14 @@ class GameState:
         # Why the run ended: "time" (clock hit 0) or "sanity" (hit the floor).
         self.end_reason = None
 
-    # Make a brand-new game with the player centered and the floor stocked.
+    # Make a brand-new game: generate a fresh maze, place the player on its
+    # origin Floor cell, and stock the floor with items. Tests may inject their
+    # own maze; otherwise one is generated from the same RNG.
     @classmethod
-    def new(cls, rng, config):
-        center = (config.arena_width // 2, config.arena_height // 2)
-        state = cls(config=config, player=center, rng=rng)
+    def new(cls, rng, config, maze=None):
+        if maze is None:
+            maze = Maze.generate(rng, config)
+        state = cls(config=config, player=maze.origin, rng=rng, maze=maze)
         state._refill_items()
         return state
 
@@ -75,22 +83,21 @@ class GameState:
 
     # --------------- _refill_items — restock the floor to item_cap -------- #
 
-    # Spawn items on random empty cells (no player, no other item) until the
-    # floor holds item_cap.
+    # Spawn items on random empty Floor cells (no player, no other item, no
+    # Wall) until the floor holds item_cap.
     def _refill_items(self):
         cfg = self._config
         need = cfg.item_cap - len(self.items)
         if need <= 0:
             return
         # Build the free-cell list once, not once per spawn — chosen cells are
-        # dropped from it as we go. Same cells in the same order as the old
-        # per-spawn rebuild, so a seeded RNG still picks an identical run.
-        empty = [
-            (x, y)
-            for x in range(cfg.arena_width)
-            for y in range(cfg.arena_height)
-            if (x, y) != self.player and (x, y) not in self.items
-        ]
+        # dropped from it as we go. Sorted so a seeded RNG picks an identical
+        # run regardless of the maze's Floor-set iteration order.
+        empty = sorted(
+            cell
+            for cell in self.maze.floor_cells
+            if cell != self.player and cell not in self.items
+        )
         for _ in range(need):
             # No room left — stop rather than loop forever.
             if not empty:
@@ -127,11 +134,11 @@ class GameState:
         dx = (1 if "right" in held else 0) - (1 if "left" in held else 0)
         dy = (1 if "down" in held else 0) - (1 if "up" in held else 0)
         x, y = self.player
-        new_x = x + dx
-        new_y = y + dy
-        # Clamp inside the walls: valid cells run 0 .. arena_size - 1.
-        new_x = max(0, min(self._config.arena_width - 1, new_x))
-        new_y = max(0, min(self._config.arena_height - 1, new_y))
+        # Resolve each axis against Wall cells independently, so the player
+        # slides along a wall instead of stopping dead on a blocked diagonal.
+        # is_floor is False off-grid too, so this also enforces the arena border.
+        new_x = x + dx if dx and self.maze.is_floor((x + dx, y)) else x
+        new_y = y + dy if dy and self.maze.is_floor((new_x, y + dy)) else y
         self.player = (new_x, new_y)
         events = []
         # Walking onto an item collects it: score, apply karma, report, restock.

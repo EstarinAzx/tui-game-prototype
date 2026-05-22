@@ -29,8 +29,15 @@ class Config:
 
     # --- The arena ---
     # The size of the play area INSIDE the walls, measured in cells.
-    arena_width: int = 80
-    arena_height: int = 24
+    # - Odd (81x25, not 80x24): standard maze generation lays rooms on even
+    #   coords, so odd dimensions land cleanly with 1-cell corridors.
+    arena_width: int = 81
+    arena_height: int = 25
+
+    # --- The maze ---
+    # Probability each dead-end room gets a second passage carved (braiding).
+    # - 1.0: every dead end removed, so no corridor traps the Player.
+    maze_braid_factor: float = 1.0
 
     # --- Items ---
     # How many items the floor is kept stocked with at all times.

@@ -27,6 +27,10 @@ VERTICAL = "│"
 # The player glyph: a solid filled block.
 PLAYER_GLYPH = "█"
 
+# The wall glyph: a solid block, drawn dim so it reads as a backdrop the
+# player and items stand out against.
+WALL_GLYPH = "█"
+
 # The item glyph: a mysterious question mark (its karma is hidden).
 ITEM_GLYPH = "?"
 
@@ -107,6 +111,11 @@ def render_frame(term, state, config, flash=None, high_score=0):
 
     for row in range(height):
         cells = [" "] * width
+        # Maze Wall cells, drawn dim. Items and the player live on Floor, so
+        # they paint over the blank Floor cells left here.
+        for col in range(width):
+            if state.maze.is_wall((col, row)):
+                cells[col] = term.dim(WALL_GLYPH)
         for ix, iy in state.items:
             if iy == row:
                 cells[ix] = term.yellow(ITEM_GLYPH)

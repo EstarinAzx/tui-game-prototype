@@ -8,47 +8,49 @@ tags: [context, active-work]
 # Active Work
 
 _Last updated: 2026-05-23 by Opus 4.7 (auto)_
-_At commit: 4797b64 (planning docs committed — clean tree)_
+_At commit: uncommitted — Slice 1 (#2) complete, about to commit_
 
 ## Current focus
 
-KARMA RUSH **maze expansion** is fully planned and ticketed. A grill →
-PRD → issues pass this session turned three new features — a procedural
-maze, a Hunter enemy AI, and bonus time from good karma — into GitHub
-issue #1 (PRD) and four build slices (#2–#5). No code written yet.
+KARMA RUSH **maze expansion**, Slice 1 of 4. The braided Maze is built: a
+new pure-core maze module, the 81×25 Arena, Wall-blocked movement,
+Floor-only item spawn, and Wall rendering. The empty Arena is gone — every
+Run now threads a real maze. 81 tests green.
 
 ## State
 
-- **In flight:** Nothing — planning complete, build not started.
-- **Done this session:**
-  - `/grill-with-docs` — resolved 12 design decisions. Updated
-    `CONTEXT.md` (5 new terms: Maze, Wall, Floor, Hunter, Bonus time;
-    Arena/Player/Item/Pickup/Run/Karma redefined). Wrote
-    `docs/adr/0004-braided-maze.md` (supersedes D3).
-  - `/to-prd` — PRD submitted as GitHub issue #1.
-  - `/to-issues` — 4 tracer-bullet slices: #2 Maze, #3 Bonus time,
-    #4 Hunter, #5 balance playtest (HITL).
+- **In flight:** Nothing — Slice 1 done, uncommitted (about to commit).
+- **Done this session:** Built GitHub issue #2 (Slice 1) via `/tdd`:
+  - New `karma_rush/maze.py` — `Maze` class (`is_wall`/`is_floor`,
+    `floor_neighbours`, `floor_cells`, `origin`) + `Maze.generate`:
+    recursive-backtracker perfect maze, then a braid pass that removes
+    every dead end. RNG-injected, `blessed`-free.
+  - `config.py` — Arena 80×24 → 81×25 (odd), added `maze_braid_factor`.
+  - `core.py` — `GameState` holds a `Maze`; `new` places the Player on
+    `maze.origin`; `tick` Wall-blocks movement per-axis; `_refill_items`
+    spawns on Floor cells only.
+  - `render.py` — draws Wall cells dim; `required_terminal_size` is
+    config-derived, now ~83×30.
+  - New `tests/test_maze.py` (8 tests); `test_core.py` updated with an
+    open-maze helper + 2 maze-behaviour tests. 71 → 81 tests green.
 - **Blocked:** Nothing.
 
 ## Pick up here
 
-**Start GitHub issue #2 — "Slice 1: The Maze".** The full spec lives in
-GitHub issues, not in this repo — read them with
-`gh issue view <n> --comments` (repo `EstarinAzx/tui-game-prototype`):
-- **#1** — the PRD (parent: problem, solution, 29 user stories, modules).
-- **#2** — Slice 1, what to build now.
-- #3 Bonus time, #4 Hunter, #5 balance playtest — the remaining slices.
+**Build the remaining maze-expansion slices.** Read each with
+`gh issue view <n> --repo EstarinAzx/tui-game-prototype`:
+- **#3** — Bonus time (good-Karma Pickup may grant extra Run seconds).
+- **#4** — Hunter (AI predator, BFS chase, CAUGHT end). The PRD folds BFS
+  pathfinding into `maze.py` — it has no path helper yet.
+- **#5** — HITL balance playtest (last; tunes the shipped constants).
 
-Build #2: the braided-maze module + 81×25 arena + wall-blocked movement
-+ floor-only item spawn + wall render. #3 and #4 can then run in
-parallel; #5 (HITL playtest) is last.
-
-Run `python -m pytest` first to confirm the suite is green (71 tests)
-before building.
+#3 and #4 are independent pure-core additions and can run in parallel.
+Run `python -m pytest` first — expect **81 green**.
 
 ## Skills for next session
 
-- /tdd — slices #2–#4 each ship a tested pure-core module; red-green-refactor fits.
+- /tdd — #3 and #4 each ship tested pure-core logic; red-green-refactor fits.
+- /to-parallel — if splitting #3 and #4 across two agents/worktrees.
 
 ## Open questions
 
@@ -56,13 +58,15 @@ None.
 
 ## Recent context
 
-- The expansion **replaces** the empty-arena game — no Classic mode.
-- Hunter: instant-death on contact (`end_reason "caught"`), ~75% player
-  speed, BFS pathing, spawns at the BFS-farthest floor cell, active t=0.
-- Bonus time: rolled at pickup on good karma only, extends the run past
-  60s uncapped; keeps the `{cell: karma}` item shape (ADR-0003).
-- Maze gen, Hunter, and BFS all stay in the pure core (ADR-0001).
-- Shipped balance constants are starting values — slice #5 tunes them.
+- `maze_braid_factor` defaults to **1.0** = every dead end removed (the hard
+  no-dead-ends acceptance criterion). See [[decisions]].
+- The Maze roughly halves open cells: 81×25 = 2025 cells, ~1118 Floor
+  (~55%). `item_cap` is still 9 — effective Item density rose; flag for the
+  #5 playtest.
+- `make_state` (test helper) now injects an all-Floor "open maze" and
+  re-centres the Player, so pre-maze movement/karma tests keep their old
+  behaviour. Maze topology is tested only in `test_maze.py`.
+- `GameState.new` gained an optional `maze=` param for test injection.
 
 ## Related
 

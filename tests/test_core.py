@@ -14,24 +14,40 @@ import pytest
 
 from karma_rush.config import Config
 from karma_rush.core import GameState, Pickup
+from karma_rush.maze import Maze
 
 
 # ------------------------------ Test helper ------------------------------- #
 
-# Build a fresh GameState with a seeded RNG; arena size is overridable.
-def make_state(width=60, height=20):
-    cfg = Config(arena_width=width, arena_height=height)
-    return GameState.new(random.Random(0), cfg)
+# An all-Floor maze of the given size — no Walls anywhere.
+def open_maze(width, height):
+    cells = {(x, y) for x in range(width) for y in range(height)}
+    return Maze(width, height, cells)
+
+
+# Build a fresh GameState on an open (Wall-free) maze with the player centred.
+# Movement, karma, and sanity tests use this so they behave as the pre-maze
+# empty Arena did — maze-specific behaviour is covered by its own tests.
+def make_state(width=60, height=20, item_cap=9):
+    cfg = Config(arena_width=width, arena_height=height, item_cap=item_cap)
+    state = GameState(
+        config=cfg,
+        player=(width // 2, height // 2),
+        rng=random.Random(0),
+        maze=open_maze(width, height),
+    )
+    state._refill_items()
+    return state
 
 
 # --------------------------- Movement and walls --------------------------- #
 
-# Cycle 1 — a new game places the player at the arena center.
-def test_new_game_places_player_at_arena_center():
-    cfg = Config(arena_width=60, arena_height=20)
-    state = GameState.new(random.Random(0), cfg)
-    # The center of a 60x20 arena is column 30, row 10.
-    assert state.player == (30, 10)
+# Cycle 1 — a new game places the player on the maze origin Floor cell.
+def test_new_game_places_player_at_maze_origin():
+    state = GameState.new(random.Random(0), Config())
+    assert state.player == state.maze.origin
+    # The origin must be enterable — the player can never start inside a Wall.
+    assert state.maze.is_floor(state.player)
 
 
 # Cycle 2 — one tick with a held direction moves the player exactly one cell.
@@ -99,6 +115,17 @@ def test_empty_intents_does_not_move_player():
     assert state.player == (30, 10)
 
 
+# Cycle 3b — a Wall cell stops the player, just like the arena border.
+def test_walls_block_the_player():
+    # A 1-row arena with a Wall at the middle cell: . # .
+    cfg = Config(arena_width=3, arena_height=1, item_cap=0)
+    maze = Maze(3, 1, {(0, 0), (2, 0)})
+    state = GameState.new(random.Random(0), cfg, maze=maze)
+    state.tick({"right"}, dt=0.05)
+    # The player started on the origin and cannot enter the Wall at (1, 0).
+    assert state.player == (0, 0)
+
+
 # --------------------- Item spawning and collection ----------------------- #
 
 # Cycle 8 — a new game stocks the floor with item_cap items.
@@ -106,6 +133,15 @@ def test_new_game_spawns_item_cap_items():
     cfg = Config(arena_width=60, arena_height=20, item_cap=6)
     state = GameState.new(random.Random(0), cfg)
     assert len(state.items) == 6
+
+
+# Cycle 8b — items only ever spawn on Floor cells of the maze.
+def test_items_spawn_only_on_floor_cells():
+    # A real generated maze, so the floor is a true subset of the arena.
+    state = GameState.new(random.Random(0), Config())
+    assert state.items
+    for cell in state.items:
+        assert state.maze.is_floor(cell)
 
 
 # Cycle 9 — a spawned item never lands on the player or another item.
@@ -131,8 +167,7 @@ def test_walking_onto_an_item_collects_it():
 
 # Cycle 11 — collecting an item triggers a replacement spawn to the cap.
 def test_collecting_an_item_refills_to_the_cap():
-    cfg = Config(arena_width=60, arena_height=20, item_cap=6)
-    state = GameState.new(random.Random(0), cfg)
+    state = make_state(item_cap=6)
     assert len(state.items) == 6
     # Stage a single known item so the step is deterministic.
     state.player = (5, 5)

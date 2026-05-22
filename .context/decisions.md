@@ -202,3 +202,38 @@ paths. All new logic stays in the pure core (ADR-0001) so it unit-tests.
 **Reversibility:** hard — supersedes D3 (empty arena); the braided topology, the
 Hunter, and the 81×25 arena are load-bearing across core/render/tests. The
 shipped balance constants (tuned in slice #5) are trivially reversible.
+
+---
+
+## 2026-05-23 — Slice 1 (#2): `maze_braid_factor` defaults to 1.0 — no dead ends
+
+**Decision:** `config.maze_braid_factor` (default **1.0**) is the probability
+each dead-end room gets a second passage carved. `Maze.generate` always runs two
+passes: a recursive-backtracker perfect maze, then a braid pass. At factor 1.0
+every dead end is removed, satisfying the slice's hard acceptance criterion
+"every Floor cell has ≥2 Floor neighbours". Only rooms (even,even cells) can
+dead-end; connectors link two rooms by construction, so they always have two
+Floor neighbours.
+**Why:** The acceptance criterion forbids dead ends outright, yet
+`maze_braid_factor` had to exist as a config knob (PRD story 28). Resolved by
+making it a real probability with the shipped default pinned at 1.0 — the
+shipped Maze never has a dead end, but slice #5's playtest *could* lower it.
+This closes the "what does the braid factor do / why 1.0" question.
+**Reversibility:** easy — one constant in `config.py`; lowering it is a balance
+choice deferred to slice #5.
+
+---
+
+## 2026-05-23 — Slice 1 (#2): test mazes injected, not generated
+
+**Decision:** `GameState.new(rng, config, maze=None)` gained an optional `maze`
+parameter. Production passes nothing (a fresh Maze is generated); tests inject
+a hand-built `Maze` — an all-Floor "open maze" for movement/karma/sanity tests
+(via the `make_state` helper, which also re-centres the Player), or a tiny
+hand-carved maze for Wall-blocking tests.
+**Why:** Pre-maze core tests stage the Player and Items on arbitrary cells; on a
+real braided maze those cells are often Walls, so the tests would break against
+maze topology rather than the behaviour they cover. Injecting an open maze keeps
+each test pinned to one behaviour. Maze generation itself is covered separately
+in `tests/test_maze.py`.
+**Reversibility:** easy — the parameter is optional and additive.
