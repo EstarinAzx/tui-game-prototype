@@ -58,6 +58,14 @@ class Config:
     # The chance (0 to 1) that a freshly rolled item turns out to be good karma.
     karma_good_chance: float = 0.5
 
+    # --- The Hunter ---
+    # The Hunter's speed as a fraction of Player speed. The Player crosses one
+    # cell per frame; at 0.75 the Hunter covers three cells for every four of
+    # the Player's — slow enough to outrun down a straight corridor, fast
+    # enough to punish a greedy detour.
+    # - Starting value; slice #5's playtest sets the final balance.
+    hunter_speed_factor: float = 0.75
+
     # --- Bonus time ---
     # A good-karma pickup may also grant Bonus time — extra Run seconds that
     # extend the Run past run_seconds, uncapped. The roll fires only on good

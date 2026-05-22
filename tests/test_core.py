@@ -15,6 +15,7 @@ import pytest
 from karma_rush.config import Config
 from karma_rush.core import GameState, Pickup
 from karma_rush.maze import Maze
+from karma_rush.hunter import Hunter
 
 
 # ------------------------------ Test helper ------------------------------- #
@@ -352,10 +353,21 @@ def test_tick_accumulates_elapsed_by_dt():
 
 # Cycle 27 — the run ends with reason "time" once elapsed reaches run_seconds.
 def test_run_ends_with_time_reason_when_clock_runs_out():
-    # - Decay off so the clock, not sanity, is what ends this run — keeps the
-    #   test pinned to the timer path regardless of the balance preset's decay.
-    cfg = Config(sanity_decay_per_second=0.0)
-    state = GameState.new(random.Random(0), cfg)
+    # - Decay off AND no Hunter (built directly, not via GameState.new), so the
+    #   clock alone ends this run — pins the test to the timer path, isolated
+    #   from both the balance preset's decay and the Hunter's catch.
+    cfg = Config(
+        arena_width=60,
+        arena_height=20,
+        item_cap=0,
+        sanity_decay_per_second=0.0,
+    )
+    state = GameState(
+        config=cfg,
+        player=(5, 5),
+        rng=random.Random(0),
+        maze=open_maze(60, 20),
+    )
     state.tick(set(), dt=cfg.run_seconds)
     assert state.run_over is True
     assert state.end_reason == "time"
@@ -485,3 +497,108 @@ def test_banked_bonus_time_extends_the_run_past_run_seconds():
     state.tick(set(), dt=cfg.bonus_time_amount)
     assert state.run_over is True
     assert state.end_reason == "time"
+
+
+# ------------------------------ The Hunter -------------------------------- #
+
+# Cycle C1 — a new game spawns one Hunter on the Floor cell with the greatest
+# BFS distance from the Player start, so the chase begins as far away as the
+# maze allows.
+def test_new_game_spawns_hunter_at_the_farthest_floor_cell():
+    cfg = Config(arena_width=10, arena_height=6, item_cap=0)
+    state = GameState.new(random.Random(0), cfg, maze=open_maze(10, 6))
+    # The Player starts on the maze origin (0, 0); on an open 10x6 maze the
+    # BFS-farthest Floor cell is the opposite corner.
+    assert state.hunter.cell == (9, 5)
+
+
+# Cycle C2 — each tick advances the Hunter one BFS hop toward the Player; the
+# Hunter hunts from the very first Tick.
+def test_tick_advances_the_hunter_toward_the_player():
+    cfg = Config(arena_width=20, arena_height=1, item_cap=0)
+    state = GameState(
+        config=cfg,
+        player=(0, 0),
+        rng=random.Random(0),
+        maze=open_maze(20, 1),
+        hunter=Hunter(cell=(10, 0), step_seconds=0.05),
+    )
+    state.tick(set(), dt=0.05)
+    assert state.hunter.cell == (9, 0)
+
+
+# Cycle C3 — the run ends the moment the Hunter lands on the Player's cell, with
+# end_reason "caught".
+def test_run_ends_caught_when_the_hunter_reaches_the_player():
+    cfg = Config(arena_width=10, arena_height=1, item_cap=0)
+    state = GameState(
+        config=cfg,
+        player=(0, 0),
+        rng=random.Random(0),
+        maze=open_maze(10, 1),
+        hunter=Hunter(cell=(1, 0), step_seconds=0.05),
+    )
+    # The Hunter, one cell away, steps onto the stationary Player.
+    state.tick(set(), dt=0.05)
+    assert state.run_over is True
+    assert state.end_reason == "caught"
+
+
+# Cycle C4 — a head-on pass counts: when the Player and Hunter swap cells in one
+# Tick they have collided, so the run ends "caught" even though neither ends on
+# the other's final cell.
+def test_a_cell_swap_with_the_hunter_counts_as_caught():
+    cfg = Config(arena_width=10, arena_height=1, item_cap=0)
+    state = GameState(
+        config=cfg,
+        player=(0, 0),
+        rng=random.Random(0),
+        maze=open_maze(10, 1),
+        hunter=Hunter(cell=(1, 0), step_seconds=0.05),
+    )
+    # The Player steps right as the Hunter steps left — they pass through each
+    # other, ending on each other's start cells.
+    state.tick({"right"}, dt=0.05)
+    assert state.run_over is True
+    assert state.end_reason == "caught"
+
+
+# Cycle C5 — end priority: when one Tick both drains sanity to zero and lets the
+# Hunter reach the Player, sanity loss outranks the catch.
+def test_sanity_loss_beats_caught_when_both_end_the_run():
+    cfg = Config(arena_width=10, arena_height=1, item_cap=0)
+    state = GameState(
+        config=cfg,
+        player=(0, 0),
+        rng=random.Random(0),
+        maze=open_maze(10, 1),
+        hunter=Hunter(cell=(1, 0), step_seconds=0.05),
+    )
+    state.sanity = 1.0
+    # A big dt drains sanity past zero and carries the Hunter onto the Player.
+    state.tick(set(), dt=100.0)
+    assert state.run_over is True
+    assert state.end_reason == "sanity"
+
+
+# Cycle C6 — end priority: when one Tick both runs the clock out and lets the
+# Hunter reach the Player, the catch outranks the timer.
+def test_caught_beats_the_clock_when_both_end_the_run():
+    cfg = Config(
+        arena_width=10,
+        arena_height=1,
+        item_cap=0,
+        sanity_decay_per_second=0.0,
+    )
+    state = GameState(
+        config=cfg,
+        player=(0, 0),
+        rng=random.Random(0),
+        maze=open_maze(10, 1),
+        hunter=Hunter(cell=(1, 0), step_seconds=0.05),
+    )
+    # A full run's dt: the clock runs out and the Hunter reaches the Player in
+    # the same Tick. Decay is off, so sanity never competes.
+    state.tick(set(), dt=cfg.run_seconds)
+    assert state.run_over is True
+    assert state.end_reason == "caught"

@@ -1,22 +1,26 @@
 # ------------------ core.py — game rules and state (pure core) ------------ #
 # Depends on:
 #   - dataclasses (stdlib): frozen dataclass for the Pickup event.
+#   - collections.deque (stdlib): BFS queue for the Hunter's spawn search.
 #   - karma_rush.maze.Maze: the Wall/Floor layout the run plays on.
+#   - karma_rush.hunter.Hunter: the predator GameState owns and advances.
 #
 # Data shapes:
 #   - Pickup: frozen (cell, karma, bonus_seconds) record — one collected item,
 #     returned by tick().
-#   - GameState: mutable game state — maze, player cell, items dict, score,
-#     sanity, elapsed run time, banked bonus time, and run_over / end_reason
-#     ("time" | "sanity").
+#   - GameState: mutable game state — maze, player cell, items dict, the Hunter,
+#     score, sanity, elapsed run time, banked bonus time, and run_over /
+#     end_reason ("time" | "sanity" | "caught").
 #
 # This module imports nothing about the terminal (no blessed, screen, keyboard,
 # clock, or files). Time and randomness are injected, so identical inputs always
 # produce an identical game — which is what makes the core testable.
 
+from collections import deque
 from dataclasses import dataclass
 
 from karma_rush.maze import Maze
+from karma_rush.hunter import Hunter
 
 
 # ----------------------- Pickup — collected-item event -------------------- #
@@ -37,14 +41,17 @@ class Pickup:
 
 # The whole game in one object: where things are, plus tick() to advance a frame.
 class GameState:
-    # Build a GameState from its pieces. Most code should use GameState.new().
-    def __init__(self, config, player, rng, maze):
+    # Build a GameState from its pieces. Most code should use GameState.new();
+    # the hunter is optional so pre-Hunter tests can build a hunterless state.
+    def __init__(self, config, player, rng, maze, hunter=None):
         self._config = config
         self._rng = rng
         # The braided maze this run plays on: the Wall/Floor source of truth.
         self.maze = maze
         # Player cell as (x, y): x is the column, y is the row.
         self.player = player
+        # The Hunter predator chasing the player; None for a hunterless run.
+        self.hunter = hunter
         # Floor items: maps each item's (x, y) cell to its hidden karma swing.
         self.items = {}
         self.score = 0
@@ -61,15 +68,42 @@ class GameState:
         self.end_reason = None
 
     # Make a brand-new game: generate a fresh maze, place the player on its
-    # origin Floor cell, and stock the floor with items. Tests may inject their
-    # own maze; otherwise one is generated from the same RNG.
+    # origin Floor cell, stock the floor with items, and spawn the Hunter as far
+    # from the player as the maze allows. Tests may inject their own maze;
+    # otherwise one is generated from the same RNG.
     @classmethod
     def new(cls, rng, config, maze=None):
         if maze is None:
             maze = Maze.generate(rng, config)
         state = cls(config=config, player=maze.origin, rng=rng, maze=maze)
         state._refill_items()
+        # The Player crosses one cell per frame; the Hunter's step costs more,
+        # so it moves at hunter_speed_factor of that pace.
+        step_seconds = (1.0 / config.frame_hz) / config.hunter_speed_factor
+        spawn = cls._farthest_floor_cell(maze, maze.origin)
+        state.hunter = Hunter(spawn, step_seconds)
         return state
+
+    # --------------- _farthest_floor_cell — the Hunter's spawn ------------ #
+
+    # The Floor cell at the greatest BFS distance from `start`. A breadth-first
+    # flood dequeues cells in non-decreasing distance order, so the last one out
+    # is a farthest cell — where the Hunter spawns, as far from the player as
+    # the maze allows.
+    @staticmethod
+    def _farthest_floor_cell(maze, start):
+        frontier = deque([start])
+        seen = {start}
+        farthest = start
+        while frontier:
+            farthest = frontier.popleft()
+            # Sorted so the farthest tie-breaks identically regardless of the
+            # neighbour-list order — a deterministic spawn.
+            for nbr in sorted(maze.floor_neighbours(farthest)):
+                if nbr not in seen:
+                    seen.add(nbr)
+                    frontier.append(nbr)
+        return farthest
 
     # ------------------ _run_length — total run seconds incl. bonus ------- #
 
@@ -155,12 +189,21 @@ class GameState:
         # Passive decay scaled by dt.
         self.sanity -= self._config.sanity_decay_per_second * dt
         self._clamp_sanity()
+        # The Hunter chases the Player's cell as of the start of this Tick —
+        # it advances before the Player moves, so a head-on pass swaps the two
+        # cells, which still counts as a catch.
+        hunter_old = None
+        if self.hunter is not None:
+            hunter_old = self.hunter.cell
+            self.hunter.advance(self.maze, self.player, dt)
+        # The Player's cell before this Tick's move — needed to spot a swap.
+        player_old = self.player
         held = set(directions)
         # Opposing keys cancel: +1 and -1 sum to 0. Rows count downward, so
         # "down" adds to y and "up" subtracts.
         dx = (1 if "right" in held else 0) - (1 if "left" in held else 0)
         dy = (1 if "down" in held else 0) - (1 if "up" in held else 0)
-        x, y = self.player
+        x, y = player_old
         # Resolve each axis against Wall cells independently, so the player
         # slides along a wall instead of stopping dead on a blocked diagonal.
         # is_floor is False off-grid too, so this also enforces the arena border.
@@ -182,11 +225,21 @@ class GameState:
                 Pickup(cell=self.player, karma=karma, bonus_seconds=bonus)
             )
             self._refill_items()
-        # End the run: sanity loss takes priority over the clock when both
-        # trip in the same tick — losing beats running out the timer.
+        # The Hunter catches the Player by landing on the same cell, or by the
+        # two swapping cells in one Tick — a head-on pass through each other.
+        caught = self.hunter is not None and (
+            self.hunter.cell == self.player
+            or (hunter_old == self.player and self.hunter.cell == player_old)
+        )
+        # End the run, in strict priority when more than one trips on a tick:
+        # sanity loss, then the Hunter's catch, then the clock — a death always
+        # outranks merely running out of time.
         if self.sanity <= self._config.sanity_min:
             self.run_over = True
             self.end_reason = "sanity"
+        elif caught:
+            self.run_over = True
+            self.end_reason = "caught"
         elif self.elapsed >= self._run_length:
             self.run_over = True
             self.end_reason = "time"

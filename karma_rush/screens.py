@@ -20,6 +20,7 @@
 END_REASON_TEXT = {
     "time": "TIME UP",
     "sanity": "SANITY LOST",
+    "caught": "CAUGHT",
 }
 
 
@@ -48,6 +49,7 @@ def render_title(term):
         ("KARMA RUSH", term.bold),
         ("", None),
         ("Hoard mysterious items. Survive 60 seconds.", None),
+        ("Outrun the Hunter — it never stops chasing.", term.red),
         ("", None),
         ("Move    WASD / Arrow keys", term.dim),
         ("Quit    Q / Esc", term.dim),
@@ -78,8 +80,11 @@ def render_countdown(term, number):
 # run just set it.
 def render_game_over(term, state, high_score=0, is_new_high_score=False):
     headline = END_REASON_TEXT.get(state.end_reason, "GAME OVER")
-    # Red headline for a sanity loss, yellow for a clean time-out.
-    headline_color = term.red if state.end_reason == "sanity" else term.yellow
+    # Red headline for a death — sanity loss or a catch — yellow for a clean
+    # time-out.
+    headline_color = (
+        term.red if state.end_reason in ("sanity", "caught") else term.yellow
+    )
 
     # A new high score gets a green call-out; otherwise show the score to beat.
     if is_new_high_score:

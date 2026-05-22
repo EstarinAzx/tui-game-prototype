@@ -11,6 +11,8 @@
 # clock. Randomness is injected as an RNG, so a seeded Run reproduces an
 # identical Maze — which is what makes generation testable.
 
+from collections import deque
+
 
 # ------------------------- Adjacency step vectors ------------------------- #
 
@@ -65,6 +67,36 @@ class Maze:
         x, y = cell
         adjacent = ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1))
         return [n for n in adjacent if n in self._floor]
+
+    # -------------------- path_step — one BFS hop toward a goal ----------- #
+
+    # The next cell on a shortest Floor path from `start` toward `goal` — the
+    # single hop the Hunter takes each move. Returns None when already on the
+    # goal, or when no Floor path connects the two (a Wall goal included, since
+    # BFS only ever crosses Floor).
+    def path_step(self, start, goal):
+        if start == goal:
+            return None
+        # BFS out from start; came_from records each cell's predecessor so the
+        # shortest path can be walked back once goal is reached.
+        frontier = deque([start])
+        came_from = {start: None}
+        while frontier:
+            cell = frontier.popleft()
+            if cell == goal:
+                break
+            for nbr in self.floor_neighbours(cell):
+                if nbr not in came_from:
+                    came_from[nbr] = cell
+                    frontier.append(nbr)
+        if goal not in came_from:
+            return None
+        # Walk the predecessor chain back from goal; the cell whose predecessor
+        # is start is the first hop.
+        cell = goal
+        while came_from[cell] != start:
+            cell = came_from[cell]
+        return cell
 
     # ----------------------- generate — build a Maze ---------------------- #
 

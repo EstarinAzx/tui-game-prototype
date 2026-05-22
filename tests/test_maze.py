@@ -106,3 +106,36 @@ def test_every_floor_cell_is_reachable_from_the_origin():
 def test_generation_is_deterministic_under_a_seeded_rng():
     assert make_maze(seed=7).floor_cells == make_maze(seed=7).floor_cells
     assert make_maze(seed=1).floor_cells != make_maze(seed=2).floor_cells
+
+
+# ---------------------------- BFS pathfinding ----------------------------- #
+
+# Cycle M9 — path_step returns the first hop on a shortest Floor path from
+# start toward goal: the Hunter takes one step of this each move.
+def test_path_step_returns_first_hop_toward_the_goal():
+    # A straight 4-cell corridor: . . . .
+    maze = Maze(4, 1, {(0, 0), (1, 0), (2, 0), (3, 0)})
+    assert maze.path_step((0, 0), (3, 0)) == (1, 0)
+
+
+# Cycle M10 — path_step returns None when start already equals goal: a Hunter
+# standing on the Player has nowhere to step.
+def test_path_step_returns_none_when_already_on_the_goal():
+    maze = Maze(4, 1, {(0, 0), (1, 0), (2, 0), (3, 0)})
+    assert maze.path_step((2, 0), (2, 0)) is None
+
+
+# Cycle M11 — path_step follows the maze, not the compass: when a Wall blocks
+# the direct line, the first hop is a Floor cell that may point away from the
+# goal, and it is never a Wall.
+def test_path_step_routes_around_walls_not_toward_the_goal_blindly():
+    # goal sits straight below start, but the cell between them is a Wall, so
+    # the only route loops right and down. Floor is a C-shaped corridor.
+    #   y=0:  S . .        y=1:  # # .        y=2:  G . .
+    floor = {(0, 0), (1, 0), (2, 0), (2, 1), (0, 2), (1, 2), (2, 2)}
+    maze = Maze(3, 3, floor)
+    step = maze.path_step((0, 0), (0, 2))
+    # The first hop is (1, 0) — rightward, away from the goal's column — and a
+    # real Floor cell, never the blocking Wall at (0, 1).
+    assert step == (1, 0)
+    assert maze.is_floor(step)

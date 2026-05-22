@@ -53,6 +53,10 @@ WALL_GLYPHS = {
 # The item glyph: a mysterious question mark (its karma is hidden).
 ITEM_GLYPH = "?"
 
+# The Hunter glyph: a solid diamond, drawn red — a distinct shape and color
+# from the white Player block and the yellow item question marks.
+HUNTER_GLYPH = "◆"
+
 # The sanity bar: a fixed-width HUD gauge. Filled cells show sanity remaining,
 # empty cells show how much has drained away.
 SANITY_BAR_WIDTH = 20
@@ -151,6 +155,9 @@ def render_frame(term, state, config, flash=None, high_score=0, bonus_flash=None
         for ix, iy in state.items:
             if iy == row:
                 cells[ix] = term.yellow(ITEM_GLYPH)
+        # The red Hunter, drawn over items but under the Player.
+        if state.hunter is not None and state.hunter.cell[1] == row:
+            cells[state.hunter.cell[0]] = term.red(HUNTER_GLYPH)
         # Player drawn last so it sits on top of anything else.
         if row == py:
             cells[px] = term.white(PLAYER_GLYPH)
