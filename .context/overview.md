@@ -10,7 +10,7 @@ tags: [context, overview]
 **Project:** KARMA RUSH
 **One-liner:** A 60-second top-down TUI arcade game — hoard mysterious items, each a hidden 50/50 karma gamble that swings your sanity; survive the minute and chase the high score.
 
-_Status: **v1 complete (all 7 slices); v2 maze expansion in progress — Slice 1 of 4 built (81 tests green).** v1: scaffold, arena, movable player, items (spawn, walk-over collect, score), sanity (decay, per-item karma, color-coded bar, pickup flash, death at 0), the 60s run loop (`TIME UP` / `SANITY LOST` end, game-over screen, `R` restart), the front end — title screen, 3-2-1 countdown, and a formal phase machine (TITLE → COUNTDOWN → PLAYING → GAMEOVER) — and a persistent high score, all on a tested `blessed`-free core. **v2 — the maze expansion** (procedural braided maze, Hunter enemy AI, bonus time) is specced as PRD GitHub issue #1 and broken into build slices #2–#5; **Slice 1 (#2, the braided Maze) is built** — slices #3–#5 remain. See [[active-work]]._
+_Status: **v1 complete (all 7 slices); v2 maze expansion in progress — Slice 2 of 4 built (86 tests green).** v1: scaffold, arena, movable player, items (spawn, walk-over collect, score), sanity (decay, per-item karma, color-coded bar, pickup flash, death at 0), the 60s run loop (`TIME UP` / `SANITY LOST` end, game-over screen, `R` restart), the front end — title screen, 3-2-1 countdown, and a formal phase machine (TITLE → COUNTDOWN → PLAYING → GAMEOVER) — and a persistent high score, all on a tested `blessed`-free core. **v2 — the maze expansion** (procedural braided maze, Hunter enemy AI, bonus time) is specced as PRD GitHub issue #1 and broken into build slices #2–#5; **Slices 1–2 (#2 braided Maze, #3 Bonus time) are built** — slices #4–#5 remain. See [[active-work]]._
 
 ## Layout
 
@@ -38,7 +38,7 @@ _Status: **v1 complete (all 7 slices); v2 maze expansion in progress — Slice 1
 - **Settled design:** [[decisions]] — the v1 grill (19 decisions + architecture + Slice 7 tune) and the v2 maze-expansion design pass. Do not re-litigate.
 - **Code layout:** [[code-map]] — where each piece of logic lives.
 - **Handoff state:** [[active-work]] — current focus and where to pick up.
-- **Built:** v1 (all 7 slices) + v2 Slice 1 — the braided Maze (`karma_rush/maze.py`, 81×25 arena, Wall-blocked movement, Floor-only spawn). v2 slices #3–#5 remain.
+- **Built:** v1 (all 7 slices) + v2 Slices 1–2 — the braided Maze (`karma_rush/maze.py`, 81×25 arena, Wall-blocked movement, Floor-only spawn) and Bonus time (good-Karma Pickup may grant uncapped extra Run seconds). v2 slices #4–#5 remain.
 
 ## Conventions
 

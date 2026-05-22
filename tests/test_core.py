@@ -28,8 +28,15 @@ def open_maze(width, height):
 # Build a fresh GameState on an open (Wall-free) maze with the player centred.
 # Movement, karma, and sanity tests use this so they behave as the pre-maze
 # empty Arena did — maze-specific behaviour is covered by its own tests.
-def make_state(width=60, height=20, item_cap=9):
-    cfg = Config(arena_width=width, arena_height=height, item_cap=item_cap)
+# Bonus time defaults off (chance 0) so pre-bonus tests stay deterministic;
+# bonus-time tests pass their own chance.
+def make_state(width=60, height=20, item_cap=9, bonus_time_chance=0.0):
+    cfg = Config(
+        arena_width=width,
+        arena_height=height,
+        item_cap=item_cap,
+        bonus_time_chance=bonus_time_chance,
+    )
     state = GameState(
         config=cfg,
         player=(width // 2, height // 2),
@@ -400,3 +407,81 @@ def test_time_remaining_counts_down_and_floors_at_zero():
     # Ticking past the end leaves the clock at zero, never negative.
     state.tick(set(), dt=full)
     assert state.time_remaining == 0.0
+
+
+# ------------------------------ Bonus time -------------------------------- #
+
+# Cycle 32 — a good-Karma Pickup that hits the bonus roll extends the clock.
+def test_good_karma_pickup_hitting_the_roll_grants_bonus_time():
+    # bonus_time_chance=1.0 forces every roll to hit.
+    state = make_state(bonus_time_chance=1.0)
+    full = Config().run_seconds
+    state.player = (5, 5)
+    state.items = {(6, 5): Config().karma_good}
+    # dt=0.0 so only the Bonus-time grant moves the clock, not elapsed time.
+    state.tick({"right"}, dt=0.0)
+    assert state.time_remaining > full
+
+
+# Cycle 33 — a bad-Karma Pickup never grants Bonus time, even at chance 1.0.
+def test_bad_karma_pickup_grants_no_bonus_time():
+    # chance 1.0 would hit any roll — bad karma must not roll at all.
+    state = make_state(bonus_time_chance=1.0)
+    full = Config().run_seconds
+    state.player = (5, 5)
+    state.items = {(6, 5): Config().karma_bad}
+    state.tick({"right"}, dt=0.0)
+    assert state.time_remaining == full
+
+
+# Cycle 34 — a good-Karma Pickup that misses the roll grants no Bonus time.
+def test_good_karma_pickup_missing_the_roll_grants_no_bonus_time():
+    # bonus_time_chance=0.0 forces every roll to miss.
+    state = make_state(bonus_time_chance=0.0)
+    full = Config().run_seconds
+    state.player = (5, 5)
+    state.items = {(6, 5): Config().karma_good}
+    state.tick({"right"}, dt=0.0)
+    assert state.time_remaining == full
+
+
+# Cycle 35 — the Pickup record carries the Bonus time the pickup granted.
+def test_pickup_event_carries_the_bonus_seconds_granted():
+    state = make_state(bonus_time_chance=1.0)
+    cfg = Config()
+    state.player = (5, 5)
+    state.items = {(6, 5): cfg.karma_good}
+    events = state.tick({"right"}, dt=0.0)
+    assert events == [
+        Pickup(cell=(6, 5), karma=cfg.karma_good, bonus_seconds=cfg.bonus_time_amount)
+    ]
+
+
+# Cycle 36 — banked Bonus time keeps the Run alive past run_seconds, and the
+# clock ends it only once elapsed reaches the extended total.
+def test_banked_bonus_time_extends_the_run_past_run_seconds():
+    # Decay off so sanity never ends the run — the clock is the only end path.
+    cfg = Config(
+        arena_width=60,
+        arena_height=20,
+        item_cap=0,
+        bonus_time_chance=1.0,
+        sanity_decay_per_second=0.0,
+    )
+    state = GameState(
+        config=cfg,
+        player=(5, 5),
+        rng=random.Random(0),
+        maze=open_maze(60, 20),
+    )
+    # Bank one Bonus-time grant by collecting a good item.
+    state.items = {(6, 5): cfg.karma_good}
+    state.tick({"right"}, dt=0.0)
+    # Ticking exactly to run_seconds would end a no-bonus run — not this one.
+    state.tick(set(), dt=cfg.run_seconds)
+    assert state.run_over is False
+    assert state.end_reason is None
+    # Past the extended total, the clock finally ends the run.
+    state.tick(set(), dt=cfg.bonus_time_amount)
+    assert state.run_over is True
+    assert state.end_reason == "time"

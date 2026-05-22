@@ -181,7 +181,9 @@ def _play_run(term, config, high_score):
 
     # Pickup flash: transient "+12 / -12" feedback. flash is a (text, is_good)
     # pair or None; flash_remaining counts down its seconds on screen.
+    # bonus_flash is the "+5s" Bonus-time text that rides the same countdown.
     flash = None
+    bonus_flash = None
     flash_remaining = 0.0
 
     while True:
@@ -207,20 +209,29 @@ def _play_run(term, config, high_score):
         # Advance one tick; tick reports any items collected this frame.
         events = state.tick(intents.directions, dt)
 
-        # Age an on-screen flash; drop it once its time runs out.
+        # Age an on-screen flash; drop it once its time runs out. The karma
+        # and Bonus-time flashes share one countdown and clear together.
         if flash is not None:
             flash_remaining -= dt
             if flash_remaining <= 0:
                 flash = None
+                bonus_flash = None
 
-        # A pickup starts a fresh flash showing the karma swing. tick collects
-        # at most one item per frame; read the last to be safe.
+        # A pickup starts a fresh flash showing the karma swing, plus a
+        # Bonus-time flash when the pickup granted any. tick collects at most
+        # one item per frame; read the last to be safe.
         if events:
-            karma = events[-1].karma
+            pickup = events[-1]
+            karma = pickup.karma
             flash = (f"{int(karma):+d}", karma > 0)
+            bonus_flash = (
+                f"+{int(pickup.bonus_seconds)}s"
+                if pickup.bonus_seconds > 0
+                else None
+            )
             flash_remaining = config.pickup_flash_seconds
 
-        render.render_frame(term, state, config, flash, high_score)
+        render.render_frame(term, state, config, flash, high_score, bonus_flash)
 
         # The run ended (clock or sanity) — the final frame is drawn above;
         # hand the frozen state back for the game-over screen.

@@ -237,3 +237,26 @@ maze topology rather than the behaviour they cover. Injecting an open maze keeps
 each test pinned to one behaviour. Maze generation itself is covered separately
 in `tests/test_maze.py`.
 **Reversibility:** easy — the parameter is optional and additive.
+
+---
+
+## 2026-05-23 — Slice 2 (#3): Bonus time — Pickup roll, accumulator, test isolation
+
+**Decision:** Bonus time is a second roll resolved inside `tick` on a *good*-Karma
+Pickup only (`karma > 0`); a hit adds `config.bonus_time_amount` to a
+`GameState.bonus_time_total` accumulator and is reported on `Pickup.bonus_seconds`
+(0 otherwise). `time_remaining` and the `"time"` end-check both read one
+`GameState._run_length` property (`run_seconds + bonus_time_total`). Starting
+constants: `bonus_time_chance` 0.25, `bonus_time_amount` 5.0. The `make_state`
+test helper defaults `bonus_time_chance=0.0`.
+**Why:** The maze-expansion design pass already settled *that* bonus time rolls
+at Pickup and never touches the Item dict (ADR-0003); this records the build
+choices. The roll is good-Karma-only so bad Karma never consumes the RNG. One
+`_run_length` value because the HUD clock and the end-check are the same boundary
+— naming it once stops a future edit from desyncing them. `make_state` defaults
+the chance off so all 81 pre-bonus core tests stay deterministic (a good-Karma
+Pickup would otherwise roll and shift the seeded RNG) — the same isolation trick
+as Cycle 27's `sanity_decay_per_second=0.0`. Bonus tests force the roll with
+chance 1.0 / 0.0, needing no seed control.
+**Reversibility:** easy — `bonus_time_chance` / `bonus_time_amount` are constants
+in `config.py`, retuned by slice #5; the rest is additive.

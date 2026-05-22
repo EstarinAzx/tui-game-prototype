@@ -4,9 +4,11 @@
 #   - karma_rush.maze.Maze: the Wall/Floor layout the run plays on.
 #
 # Data shapes:
-#   - Pickup: frozen (cell, karma) record — one collected item, returned by tick().
+#   - Pickup: frozen (cell, karma, bonus_seconds) record — one collected item,
+#     returned by tick().
 #   - GameState: mutable game state — maze, player cell, items dict, score,
-#     sanity, elapsed run time, and run_over / end_reason ("time" | "sanity").
+#     sanity, elapsed run time, banked bonus time, and run_over / end_reason
+#     ("time" | "sanity").
 #
 # This module imports nothing about the terminal (no blessed, screen, keyboard,
 # clock, or files). Time and randomness are injected, so identical inputs always
@@ -27,6 +29,8 @@ class Pickup:
     cell: tuple
     # The item's revealed karma: positive swing for good, negative for bad.
     karma: float
+    # Bonus time this pickup granted: extra Run seconds, 0 when none.
+    bonus_seconds: float = 0.0
 
 
 # ----------------------- GameState — rules and state ---------------------- #
@@ -48,6 +52,9 @@ class GameState:
         self.sanity = config.sanity_start
         # Seconds of run time accumulated so far; the timer counts against this.
         self.elapsed = 0.0
+        # Bonus time banked from good-karma pickups; extends the run past
+        # run_seconds, uncapped.
+        self.bonus_time_total = 0.0
         # Flips True the tick the run ends; the shell watches this.
         self.run_over = False
         # Why the run ended: "time" (clock hit 0) or "sanity" (hit the floor).
@@ -64,12 +71,22 @@ class GameState:
         state._refill_items()
         return state
 
+    # ------------------ _run_length — total run seconds incl. bonus ------- #
+
+    # The run's full length: the nominal run plus all banked bonus time. The
+    # HUD clock and the time-end check both measure against this one value, so
+    # they can never disagree on when the run is out of time.
+    @property
+    def _run_length(self):
+        return self._config.run_seconds + self.bonus_time_total
+
     # ------------------ time_remaining — seconds left on the clock -------- #
 
     # Seconds left in the run, floored at 0 — the HUD countdown reads this.
+    # Banked bonus time extends the total, so this can start a tick above 60.
     @property
     def time_remaining(self):
-        return max(0.0, self._config.run_seconds - self.elapsed)
+        return max(0.0, self._run_length - self.elapsed)
 
     # ----------------- _roll_karma — flip one item's hidden coin ---------- #
 
@@ -80,6 +97,16 @@ class GameState:
         if self._rng.random() < cfg.karma_good_chance:
             return cfg.karma_good
         return cfg.karma_bad
+
+    # ----------------- _roll_bonus — roll a good pickup for Bonus time ---- #
+
+    # Roll the injected RNG once: a win grants bonus_time_amount seconds, a miss
+    # grants none. Caller rolls this only for a good-karma pickup.
+    def _roll_bonus(self):
+        cfg = self._config
+        if self._rng.random() < cfg.bonus_time_chance:
+            return cfg.bonus_time_amount
+        return 0.0
 
     # --------------- _refill_items — restock the floor to item_cap -------- #
 
@@ -147,14 +174,20 @@ class GameState:
             self.score += 1
             self.sanity += karma
             self._clamp_sanity()
-            events.append(Pickup(cell=self.player, karma=karma))
+            # Good karma alone rolls for Bonus time; a hit banks extra run
+            # seconds and is reported on the Pickup.
+            bonus = self._roll_bonus() if karma > 0 else 0.0
+            self.bonus_time_total += bonus
+            events.append(
+                Pickup(cell=self.player, karma=karma, bonus_seconds=bonus)
+            )
             self._refill_items()
         # End the run: sanity loss takes priority over the clock when both
         # trip in the same tick — losing beats running out the timer.
         if self.sanity <= self._config.sanity_min:
             self.run_over = True
             self.end_reason = "sanity"
-        elif self.elapsed >= self._config.run_seconds:
+        elif self.elapsed >= self._run_length:
             self.run_over = True
             self.end_reason = "time"
         return events

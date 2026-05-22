@@ -58,6 +58,16 @@ class Config:
     # The chance (0 to 1) that a freshly rolled item turns out to be good karma.
     karma_good_chance: float = 0.5
 
+    # --- Bonus time ---
+    # A good-karma pickup may also grant Bonus time — extra Run seconds that
+    # extend the Run past run_seconds, uncapped. The roll fires only on good
+    # karma; a hit adds bonus_time_amount to the run-length accumulator.
+    # - Starting values; slice #5's playtest sets the final balance.
+    # The chance (0 to 1) a good-karma pickup also grants Bonus time.
+    bonus_time_chance: float = 0.25
+    # Seconds of Bonus time a winning roll adds to the Run.
+    bonus_time_amount: float = 5.0
+
     # --- Feedback ---
     # How long the "+12 / -12" pickup flash stays on screen, in seconds.
     pickup_flash_seconds: float = 0.4

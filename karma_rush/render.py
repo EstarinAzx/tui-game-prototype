@@ -121,8 +121,9 @@ def _sanity_color(term, sanity, config):
 # (score + high score + optional pickup flash, countdown, color-coded sanity
 # bar). The whole frame is redrawn every tick, so old positions paint over and
 # no trail is left. flash, when given, is a (text, is_good) pair — None for no
-# flash. high_score is the persistent value shown beside the live score.
-def render_frame(term, state, config, flash=None, high_score=0):
+# flash. bonus_flash, when given, is a Bonus-time text (e.g. "+5s") shown beside
+# the karma flash. high_score is the persistent value shown beside the score.
+def render_frame(term, state, config, flash=None, high_score=0, bonus_flash=None):
     width = config.arena_width
     height = config.arena_height
     box_w = width + 2
@@ -170,6 +171,10 @@ def render_frame(term, state, config, flash=None, high_score=0):
         flash_text, flash_good = flash
         flash_color = term.green if flash_good else term.red
         row0 += "   " + flash_color(flash_text)
+    # The Bonus-time flash trails the karma flash in its own color — distinct
+    # from the green/red karma swing, since Bonus time is not a sanity swing.
+    if bonus_flash is not None:
+        row0 += " " + term.cyan(bonus_flash)
     # Pad by visible length — term.length ignores invisible color escape bytes.
     pad0 = " " * max(0, width - term.length(row0))
     out.append(term.move_xy(origin_x, origin_y + box_h) + row0 + pad0)
