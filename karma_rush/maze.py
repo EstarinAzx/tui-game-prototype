@@ -21,6 +21,33 @@ from collections import deque
 _STEPS = ((2, 0), (-2, 0), (0, 2), (0, -2))
 
 
+# ------------------------- Bresenham line traversal ----------------------- #
+
+# Yield every grid cell on the straight line from a to b, both endpoints
+# included. Standard integer Bresenham — used by Maze.has_line_of_sight as the
+# Hunter's ray cast.
+def _bresenham_cells(a, b):
+    x0, y0 = a
+    x1, y1 = b
+    dx = abs(x1 - x0)
+    dy = -abs(y1 - y0)
+    sx = 1 if x0 < x1 else -1
+    sy = 1 if y0 < y1 else -1
+    err = dx + dy
+    x, y = x0, y0
+    while True:
+        yield (x, y)
+        if x == x1 and y == y1:
+            return
+        e2 = 2 * err
+        if e2 >= dy:
+            err += dy
+            x += sx
+        if e2 <= dx:
+            err += dx
+            y += sy
+
+
 # ----------------------------- Maze — the layout -------------------------- #
 
 # A generated braided maze: corridors loop, no dead ends. Built once by
@@ -67,6 +94,23 @@ class Maze:
         x, y = cell
         adjacent = ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1))
         return [n for n in adjacent if n in self._floor]
+
+    # ------------------ has_line_of_sight — Bresenham ray cast ------------ #
+
+    # True when an unobstructed straight line of Floor cells connects `a` to
+    # `b` AND `b` is within max_range Chebyshev cells of `a`. The Hunter calls
+    # this every Tick: with LOS it chases the Player, without it it falls back
+    # to memory or wander. max_range=None means no limit (legacy behaviour).
+    def has_line_of_sight(self, a, b, max_range=None):
+        # Chebyshev matches the Bresenham step count: a king-move distance is
+        # the natural grid measure of "how far the ray reaches".
+        if max_range is not None:
+            if max(abs(b[0] - a[0]), abs(b[1] - a[1])) > max_range:
+                return False
+        for cell in _bresenham_cells(a, b):
+            if cell not in self._floor:
+                return False
+        return True
 
     # -------------------- path_step — one BFS hop toward a goal ----------- #
 

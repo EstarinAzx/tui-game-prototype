@@ -521,7 +521,7 @@ def test_tick_advances_the_hunter_toward_the_player():
         player=(0, 0),
         rng=random.Random(0),
         maze=open_maze(20, 1),
-        hunter=Hunter(cell=(10, 0), step_seconds=0.05),
+        hunter=Hunter(cell=(10, 0), step_seconds=0.05, rng=random.Random(0)),
     )
     state.tick(set(), dt=0.05)
     assert state.hunter.cell == (9, 0)
@@ -536,7 +536,7 @@ def test_run_ends_caught_when_the_hunter_reaches_the_player():
         player=(0, 0),
         rng=random.Random(0),
         maze=open_maze(10, 1),
-        hunter=Hunter(cell=(1, 0), step_seconds=0.05),
+        hunter=Hunter(cell=(1, 0), step_seconds=0.05, rng=random.Random(0)),
     )
     # The Hunter, one cell away, steps onto the stationary Player.
     state.tick(set(), dt=0.05)
@@ -554,7 +554,7 @@ def test_a_cell_swap_with_the_hunter_counts_as_caught():
         player=(0, 0),
         rng=random.Random(0),
         maze=open_maze(10, 1),
-        hunter=Hunter(cell=(1, 0), step_seconds=0.05),
+        hunter=Hunter(cell=(1, 0), step_seconds=0.05, rng=random.Random(0)),
     )
     # The Player steps right as the Hunter steps left — they pass through each
     # other, ending on each other's start cells.
@@ -572,7 +572,7 @@ def test_sanity_loss_beats_caught_when_both_end_the_run():
         player=(0, 0),
         rng=random.Random(0),
         maze=open_maze(10, 1),
-        hunter=Hunter(cell=(1, 0), step_seconds=0.05),
+        hunter=Hunter(cell=(1, 0), step_seconds=0.05, rng=random.Random(0)),
     )
     state.sanity = 1.0
     # A big dt drains sanity past zero and carries the Hunter onto the Player.
@@ -595,10 +595,54 @@ def test_caught_beats_the_clock_when_both_end_the_run():
         player=(0, 0),
         rng=random.Random(0),
         maze=open_maze(10, 1),
-        hunter=Hunter(cell=(1, 0), step_seconds=0.05),
+        hunter=Hunter(cell=(1, 0), step_seconds=0.05, rng=random.Random(0)),
     )
     # A full run's dt: the clock runs out and the Hunter reaches the Player in
     # the same Tick. Decay is off, so sanity never competes.
     state.tick(set(), dt=cfg.run_seconds)
     assert state.run_over is True
     assert state.end_reason == "caught"
+
+
+# Cycle C7 — at spawn the Hunter sits at the BFS-farthest cell, which on a real
+# braided maze has no LOS to the Player at the origin. So the first Tick must
+# NOT register a sighting — last_known stays None and the Hunter wanders rather
+# than beelining, giving the Player an opening.
+def test_at_spawn_with_no_los_the_hunter_does_not_beeline():
+    # A real generated maze — the empty open_maze has no Walls, so it can't
+    # exercise the "no LOS at spawn" case the smart Hunter is designed for.
+    cfg = Config(arena_width=21, arena_height=21, item_cap=0)
+    state = GameState.new(random.Random(0), cfg)
+    # Precondition: the spawn really has no LOS to the Player. If a generation
+    # accident put them in sight, the test below would be meaningless.
+    assert not state.maze.has_line_of_sight(state.hunter.cell, state.player)
+    # One Tick at a step's budget: the Hunter takes one wander step. Since LOS
+    # never fired this Tick, it cannot have recorded a last_known.
+    state.tick(set(), dt=1.0 / cfg.frame_hz / cfg.hunter_speed_factor)
+    assert state.hunter.last_known is None
+
+
+# Cycle C8 — the patrol-based wander actually sweeps the map: over a stretch of
+# Ticks with no LOS to the Player, the Hunter visits many distinct cells, not
+# oscillating between two neighbours of its spawn.
+def test_patrol_wander_covers_many_unique_cells_on_a_real_maze():
+    cfg = Config(arena_width=21, arena_height=21, item_cap=0)
+    state = GameState.new(random.Random(0), cfg)
+    # The Player stays put at the origin; the Hunter wanders far across the
+    # generated maze, well out of LOS, so the test pins patrol coverage.
+    step_dt = 1.0 / cfg.frame_hz / cfg.hunter_speed_factor
+    visited = set()
+    for _ in range(200):
+        state.tick(set(), dt=step_dt)
+        visited.add(state.hunter.cell)
+    # A pure oscillating wander would land on ~2-3 cells; the patrol-led wander
+    # should cover an order of magnitude more.
+    assert len(visited) >= 30
+
+
+# Cycle C9 — GameState.new wires config.hunter_sight_range into the spawned
+# Hunter so the playtest-tunable range cap actually reaches the predator.
+def test_game_state_new_passes_sight_range_to_hunter():
+    cfg = Config(arena_width=10, arena_height=6, item_cap=0, hunter_sight_range=7)
+    state = GameState.new(random.Random(0), cfg, maze=open_maze(10, 6))
+    assert state.hunter._sight_range == 7

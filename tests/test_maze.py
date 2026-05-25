@@ -139,3 +139,57 @@ def test_path_step_routes_around_walls_not_toward_the_goal_blindly():
     # real Floor cell, never the blocking Wall at (0, 1).
     assert step == (1, 0)
     assert maze.is_floor(step)
+
+
+# ------------------------- Line of sight (Bresenham) ---------------------- #
+
+# Cycle L1 — adjacent Floor cells see each other: the simplest LOS case the
+# Hunter checks every Tick to decide whether to chase the Player.
+def test_line_of_sight_true_for_adjacent_floor_cells():
+    maze = Maze(2, 1, {(0, 0), (1, 0)})
+    assert maze.has_line_of_sight((0, 0), (1, 0)) is True
+
+
+# Cycle L2 — every cell on an open straight corridor is Floor, so LOS holds
+# across its full length.
+def test_line_of_sight_true_across_open_straight_corridor():
+    maze = Maze(5, 1, {(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)})
+    assert maze.has_line_of_sight((0, 0), (4, 0)) is True
+
+
+# Cycle L3 — one Wall on the straight line breaks LOS: the Hunter cannot see
+# through a corridor wall.
+def test_line_of_sight_false_when_a_wall_sits_on_the_line():
+    # A 5-cell row with the middle cell missing: . . # . .
+    maze = Maze(5, 1, {(0, 0), (1, 0), (3, 0), (4, 0)})
+    assert maze.has_line_of_sight((0, 0), (4, 0)) is False
+
+
+# Cycle L4 — Bresenham covers diagonals too: a Wall along the diagonal path
+# blocks LOS even when the two endpoints lie on different rows.
+def test_line_of_sight_false_on_diagonal_blocked_by_wall():
+    # 3x3 with the centre carved out — the diagonal from (0, 0) to (2, 2)
+    # passes through (1, 1), which is a Wall.
+    floor = {(0, 0), (1, 0), (2, 0), (0, 1), (2, 1), (0, 2), (1, 2), (2, 2)}
+    maze = Maze(3, 3, floor)
+    assert maze.has_line_of_sight((0, 0), (2, 2)) is False
+
+
+# Cycle L5 — a cell sees itself: the Hunter standing on the Player still has
+# LOS (so the catch logic stays unchanged regardless of the new targeting).
+def test_line_of_sight_true_for_same_cell():
+    maze = Maze(2, 1, {(0, 0), (1, 0)})
+    assert maze.has_line_of_sight((0, 0), (0, 0)) is True
+
+
+# Cycle R1 — LOS honours an optional max_range: a clear corridor longer than the
+# range gives False; within the range, the normal Floor-only check applies.
+def test_line_of_sight_respects_max_range():
+    # 10-cell straight corridor — all Floor, so range is the only thing that
+    # can block LOS.
+    maze = Maze(10, 1, {(x, 0) for x in range(10)})
+    # Range 4: a Chebyshev distance of 4 still sees, 5 does not.
+    assert maze.has_line_of_sight((0, 0), (4, 0), max_range=4) is True
+    assert maze.has_line_of_sight((0, 0), (5, 0), max_range=4) is False
+    # Unlimited (None) behaves like the original two-arg call — sees to the end.
+    assert maze.has_line_of_sight((0, 0), (9, 0), max_range=None) is True

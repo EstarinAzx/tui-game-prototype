@@ -60,11 +60,15 @@ class Config:
 
     # --- The Hunter ---
     # The Hunter's speed as a fraction of Player speed. The Player crosses one
-    # cell per frame; at 0.75 the Hunter covers three cells for every four of
-    # the Player's — slow enough to outrun down a straight corridor, fast
-    # enough to punish a greedy detour.
+    # cell per frame; at 0.5 the Hunter covers one cell for every two of the
+    # Player's — half-speed, leaving the Player room to break LOS and run.
     # - Starting value; slice #5's playtest sets the final balance.
-    hunter_speed_factor: float = 0.75
+    hunter_speed_factor: float = 0.5
+    # The Hunter's sight reach, in Chebyshev cells. Capping it stops long open
+    # corridors from giving the Hunter a free beeline on a Player it shouldn't
+    # be able to spot yet — the Player must be close before the chase fires.
+    # - Starting value; slice #5's playtest sets the final balance.
+    hunter_sight_range: int = 12
 
     # --- Bonus time ---
     # A good-karma pickup may also grant Bonus time — extra Run seconds that

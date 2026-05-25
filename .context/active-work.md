@@ -1,72 +1,89 @@
 ---
 type: active-work
 project: karma-rush
-updated: 2026-05-23
+updated: 2026-05-25
 tags: [context, active-work]
 ---
 
 # Active Work
 
-_Last updated: 2026-05-23 by Opus 4.7 (auto)_
-_At commit: 0ea4f23 — Slice 3 (#4) committed_
+_Last updated: 2026-05-25 by Opus 4.7 (auto)_
+_At commit: 6e61c0e (uncommitted: Slice 3b smart Hunter — patrol + sight-range cap)_
 
 ## Current focus
 
-KARMA RUSH **maze expansion**. Slice 3 — the Hunter (GitHub #4) — is built,
-tested, and committed. A playtest of the shipped Hunter rejected its omniscient
-chase, so a follow-up issue **#6 (Slice 3b: Smart Hunter)** redesigns the
-targeting model. 101 tests green.
+KARMA RUSH **maze expansion**. Slice 3b (the smart Hunter, GitHub #6) is built
+and green but **uncommitted**. Two HITL playtest tweaks layered on top of the
+issue spec — patrol-toward-waypoint wander, and a sight-range cap — because the
+literal spec (random wander, unlimited LOS) made the Hunter oscillate in
+corridors yet still beelined from any open sight line. 121 tests green.
 
 ## State
 
-- **In flight:** Nothing — Slice 3 committed at `0ea4f23`.
-- **Done this session:** Built GitHub issue #4 (Slice 3, the Hunter) via
-  `/tdd`, 14 red-green cycles:
-  - `maze.py` — BFS `path_step` (next hop on a shortest Floor path).
-  - `hunter.py` — new pure-core module: `Hunter` holds a cell + dt accumulator,
-    steps at 75% player speed via the BFS first hop.
-  - `config.py` — `hunter_speed_factor` (0.75).
-  - `core.py` — `GameState` owns one Hunter, spawned at the BFS-farthest Floor
-    cell; `tick` advances it; caught (shared cell or head-on swap) ends the run
-    with `end_reason "caught"`; end priority sanity → caught → time.
-  - `render.py` / `screens.py` — red `◆` Hunter glyph, CAUGHT headline, title
-    mentions the Hunter.
-  - `advance()` caps dt catch-up at two steps — a dt-spike robustness fix.
-  - Cycle 27 rewritten to drop Hunter coupling — the only existing test changed.
-- **Blocked:** Nothing.
+- **In flight:** Uncommitted Slice 3b changes ready to commit:
+  - `karma_rush/maze.py` — `has_line_of_sight(a, b, max_range=None)` (Bresenham +
+    Chebyshev range gate); `_bresenham_cells` line-walk generator.
+  - `karma_rush/hunter.py` — `Hunter(cell, step_seconds, rng, sight_range=None)`;
+    `last_known` + `patrol_target` attrs; `advance(maze, player, dt)` (was
+    `advance(maze, target, dt)`); three-state `_next_hop` (LOS chase / memory
+    head / patrol-toward-waypoint).
+  - `karma_rush/config.py` — `hunter_speed_factor` 0.75 → **0.5**; new
+    `hunter_sight_range = 12`.
+  - `karma_rush/core.py` — `GameState.new` wires the RNG and sight-range into
+    Hunter; passes `player=` keyword to `advance`.
+  - Tests: 8 new in `tests/test_hunter.py` (S1, S2, S3, S4, S5, S6, W1, W2, W3,
+    W5, R2) and 4 new in `tests/test_core.py` (C7, C8, C9); 5 LOS tests in
+    `tests/test_maze.py` (L1-L5, R1); H2-H6 repaired to new sig; existing
+    C2-C6 gained `rng=…` on their hand-built Hunters.
+- **Done this session:** built Slice 3b's smart Hunter via `/tdd`, 22 cycles
+  across L1-L5, S1-S6, C7, W1-W3, W5, C8, C9, R1-R3. Patrol replaces the spec's
+  random wander; sight cap defaults to 12 cells.
+- **Blocked:** Nothing. Awaiting eyeball commit + push (was confirmed in
+  conversation).
 
 ## Pick up here
 
-**Build issue #6 — Slice 3b: Smart Hunter.** Read it with
-`gh issue view 6 --repo EstarinAzx/tui-game-prototype`. It replaces the
-Hunter's omniscient targeting with line of sight + last-known-position memory +
-random-corridor wander, and lowers `hunter_speed_factor` to 0.5. Pure-core,
-TDD-able. After #6, **#5 (Slice 4: Balance playtest)** remains — #5 tunes the
-final Hunter, so #6 must land first.
+**Commit Slice 3b** with a message that captures both the spec'd Smart Hunter
+(LOS + memory + wander) and the two playtest-driven extensions (patrol
+waypoint, sight-range cap). Suggested:
+`feat: smart Hunter — LOS+memory+patrol, sight-range cap (maze expansion Slice 3b, #6)`.
+Reference issue #6 in the message, push, close the issue.
 
-Run `python -m pytest` first — expect **101 green**.
+After committing, **build issue #5 — Slice 4: Balance playtest** — the HITL
+tuning slice. The four knobs ready for tuning are `hunter_speed_factor` (0.5),
+`hunter_sight_range` (12), `bonus_time_chance` (0.25), `maze_braid_factor`
+(1.0); decay (2.0 or 0.5, see open question) and `item_cap` (25) are also
+in scope.
+
+Run `python -m pytest` first — expect **121 green**.
 
 ## Skills for next session
 
-- /tdd — #6 is tested pure-core logic (LOS, memory, wander); red-green-refactor.
+- /verify — Slice 4 is HITL; launch the game, feel the Hunter and the clock.
+- /tdd — only if playtest reveals a logic bug to chase down.
 
 ## Open questions
 
-None — #6's design calls (wander when no target, speed 0.5, unlimited LOS
-range) are settled in the issue body.
+- `config.sanity_decay_per_second` reads **0.5** in `config.py` but the Slice 7
+  ADR pinned it at **2.0**. Looks like a regression slipped in between sessions
+  — confirm the intended value before Slice 4's playtest, or the balance will
+  be a moving target.
 
 ## Recent context
 
-- Issue #4 specified an *omniscient* Hunter ("BFS to the player's current
-  cell", "active from t=0"). It was built to spec and committed; the playtest
-  then judged omniscience unfair. #6 is the agreed redesign — #4's commit is
-  kept as the tested BFS-pathing / catch / spawn foundation #6 extends.
-- A perceived "freeze at GET READY 2" during the playtest is **not** a Slice 3
-  regression — Slice 3 touches no countdown code, and `tick` benchmarks at
-  ~1.5 ms. Most likely Windows console QuickEdit Mode (a click pauses output).
-- Benchmarks (122×45 default config): `GameState.new` 8.6 ms, `path_step`
-  ~2 ms, `tick` ~1.5 ms. A 60 s dt-spike once cost 366 ms in `advance()`; the
-  two-step cap cut it to 3.4 ms.
+- Issue #6's spec ("wander random corridors") was built first and felt dumb in
+  playtest: 1-wide corridors gave the wander a 50% backtrack each step, so the
+  Hunter oscillated near spawn. Replaced with patrol-toward-Floor-waypoint —
+  same RNG-determinism property, but the Hunter sweeps the map.
+- The first playtest of the patrol Hunter still felt omniscient because the
+  spec set LOS as unlimited. Added a Chebyshev `hunter_sight_range` cap (12);
+  spec itself flagged this as "a range cap can be a Slice 4 tuning knob".
+- `Hunter.advance` signature flipped from `(maze, target, dt)` to
+  `(maze, player, dt)` — targeting (LOS / memory / patrol) now lives inside the
+  Hunter, not the caller. Old H tests with pre-set targets were repaired by
+  pre-seeding `hunter.last_known` instead.
+- `Hunter` constructor gained an injected `rng` (consistent with the rest of
+  the core) — used for both patrol-target picks and any fallback wander.
 
 ## Related
 

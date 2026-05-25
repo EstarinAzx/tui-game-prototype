@@ -1,7 +1,7 @@
 ---
 type: decisions
 project: karma-rush
-updated: 2026-05-23
+updated: 2026-05-25
 tags: [context, decisions]
 ---
 
@@ -289,3 +289,70 @@ make up lost time, so dropping the backlog is correct.
 **Reversibility:** medium — #6 changes how the Hunter picks its target; the
 pathing, spawn, and catch machinery underneath is stable. The dt-cap is one
 line, trivially reversible.
+
+---
+
+## 2026-05-25 — Slice 3b (#6): smart Hunter shipped — patrol wander + sight cap deviate from spec
+
+**Decision:** Slice 3b's smart Hunter (`karma_rush/hunter.py`) ships the
+three-state targeting #6 specified — LOS chase, last-known memory, and a
+wander fallback — but with **two playtest-driven deviations from the issue
+text**, both kept in the same slice rather than spun out as further follow-ups:
+
+1. *Wander is patrol, not random.* The spec said "wanders the corridors,
+   choosing randomly at junctions". Built that way first, it oscillated in
+   1-wide corridors (50% backtrack every step — sorted Floor neighbours include
+   the cell just left). Replaced with a patrol mode: pick any far Floor cell
+   (`Hunter.patrol_target`, seeded RNG so it stays deterministic), BFS-hop
+   toward it via `Maze.path_step`, pick a fresh waypoint on arrival. Coverage
+   property test (`test_patrol_wander_covers_many_unique_cells_on_a_real_maze`)
+   pins ≥30 distinct cells over 200 ticks on a 21×21 maze.
+2. *LOS has a Chebyshev range cap.* The spec said "Unlimited range for now; a
+   range cap can be a Slice 4 tuning knob". Promoted to Slice 3b after a
+   playtest where the Hunter spotted the Player down a straight corridor
+   instantly and beelined. New `config.hunter_sight_range = 12` plumbs into
+   `Hunter(sight_range=…)` and `Maze.has_line_of_sight(a, b, max_range=…)`.
+
+Other build choices: `hunter_speed_factor` 0.75 → **0.5** as specified;
+`Hunter` constructor gained an injected `rng` (consistent with the rest of the
+core); `Hunter.advance` signature flipped to `(maze, player, dt)` so the Hunter
+owns its targeting — old tests that used `target=` were repaired by
+pre-seeding `hunter.last_known`. The 121-test suite stays green.
+
+**Why:** The literal #6 spec made the Hunter feel both dumb (oscillating on
+corridors) and unfair (omniscient at distance). Both deviations are tunable in
+Slice 4 — a `sight_range` of 12 and patrol coverage are starting values, not
+absolutes. Keeping them inside Slice 3b means Slice 4 (the playtest) has a
+single coherent Hunter to tune, not a new behaviour to also validate.
+
+**Reversibility:** medium. The patrol wander could be reverted to a random
+neighbour pick by re-deleting `Hunter.patrol_target` / `_pick_patrol_target`
+and the wander branch (~20 lines); the sight cap is one `Config` constant plus
+one `max_range=` argument. Neither is a one-way door.
+
+---
+
+## 2026-05-25 — `Hunter` owns its targeting; constructor takes RNG; `advance(maze, player, dt)`
+
+**Decision:** The Hunter's public interface changed shape in Slice 3b. The
+constructor signature is now `Hunter(cell, step_seconds, rng, sight_range=None)`
+— RNG is injected (matching ADR-0001 — pure core, no global `random`), and
+`sight_range` defaults to None so existing pure-mechanics tests do not need to
+pass a cap. `Hunter.advance` is now `advance(maze, player, dt)`; the caller
+hands over the Player cell, and the Hunter decides what to target (LOS chase,
+memory, or patrol). The Hunter's mutable state grew two attributes: `last_known`
+(the Player cell last seen, or None) and `patrol_target` (the current
+waypoint, or None).
+
+**Why:** Pre-Slice-3b, `GameState.tick` already passed `self.player` as the
+target, but the Hunter treated it as a literal goal. The smart Hunter's
+targeting is too complex to live in `core.tick` without bloating it; moving
+the LOS / memory / patrol logic into the Hunter keeps `core.tick` thin and
+puts the predator's brain inside the predator. The RNG injection is what makes
+patrol determinism testable end-to-end. Keeping `sight_range` optional means
+the H2-H6 hunter-mechanics tests stay focused on stepping/pacing without
+having to also configure sight.
+
+**Reversibility:** hard — the public sig change ripples through every Hunter
+construction in the test suite and through `GameState.new`. Reverting means
+moving targeting back into `core.tick`.

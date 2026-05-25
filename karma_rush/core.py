@@ -81,7 +81,9 @@ class GameState:
         # so it moves at hunter_speed_factor of that pace.
         step_seconds = (1.0 / config.frame_hz) / config.hunter_speed_factor
         spawn = cls._farthest_floor_cell(maze, maze.origin)
-        state.hunter = Hunter(spawn, step_seconds)
+        state.hunter = Hunter(
+            spawn, step_seconds, rng=rng, sight_range=config.hunter_sight_range
+        )
         return state
 
     # --------------- _farthest_floor_cell — the Hunter's spawn ------------ #
@@ -195,7 +197,7 @@ class GameState:
         hunter_old = None
         if self.hunter is not None:
             hunter_old = self.hunter.cell
-            self.hunter.advance(self.maze, self.player, dt)
+            self.hunter.advance(self.maze, player=self.player, dt=dt)
         # The Player's cell before this Tick's move — needed to spot a swap.
         player_old = self.player
         held = set(directions)
